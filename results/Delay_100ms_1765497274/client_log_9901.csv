@@ -1,0 +1,2 @@
+client_id,snapshot_id,seq_num,server_timestamp_ms,recv_time_ms,latency_ms,render_x,render_y
+unknown_7924,0,0,1765497284900,1765497285036,136,0,0
