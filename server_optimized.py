@@ -31,6 +31,7 @@ class GridClashUDPServer:
         self.snapshot_id = 0
         self.sequence_num = 0
         self.update_rate = 20  # 20 Hz
+        self.game_over_sent = False  # Track if game over was sent
         
         # Reliability Structures (Phase 2 requirement)
         self.retry_queue = {} 
@@ -57,12 +58,15 @@ class GridClashUDPServer:
             print(f">>> Update rate: {self.update_rate} Hz")
             print(">>> Using netem for network simulation (Linux)")
             
+            # CRITICAL: Ensure game is started
+            self.game_state.game_started = True
+            
             # Initialize CSV Logger
             self.csv_logger = GameLogger("server_log.csv", 
                 ["timestamp", "cpu_percent", "bytes_sent", "player1_pos_x", "player1_pos_y"])
             
-            # Start background threads
-            threading.Thread(target=self.broadcast_loop, daemon=True).start()
+            # Start background threads - USING FIXED BROADCAST LOOP
+            threading.Thread(target=self.fixed_broadcast_loop, daemon=True).start()
             threading.Thread(target=self.cleanup_loop, daemon=True).start()
             threading.Thread(target=self.metrics_loop, daemon=True).start()
             threading.Thread(target=self.reliability_loop, daemon=True).start()
@@ -196,22 +200,45 @@ class GridClashUDPServer:
         if self.game_state.game_over:
             self.broadcast_game_over()
 
-    def broadcast_loop(self):
-        snapshot_interval = 1.0 / self.update_rate
+    def fixed_broadcast_loop(self):
+        """ALWAYS broadcast at fixed 20Hz rate, regardless of game state"""
+        print("[BROADCAST] Starting fixed 20Hz broadcast loop")
+        
+        target_interval = 1.0 / self.update_rate  # 0.05s = 50ms
         
         while self.running:
             start_time = time.time()
             
-            if self.game_state.game_started and not self.game_state.game_over:
+            # ALWAYS send updates when clients are connected
+            if len(self.clients) > 0:
                 with self.lock:
-                    self.broadcast_game_state()
-            elif self.game_state.game_over:
-                self.broadcast_game_over()
-                time.sleep(5)
-                with self.lock:
-                    if len(self.clients) > 0:
-                        self.game_state.reset_game()
+                    self.snapshot_id += 1
+                    self.sequence_num += 1
+                    
+                    game_state_data = self.game_state.get_game_data(reset_dirty=True)
+                    
+                    # DEBUG: Print how many grid updates we're sending
+                    updates_count = len(game_state_data.get('grid_updates', {}))
+                    if updates_count > 0 and self.snapshot_id % 100 == 0:
+                        print(f"[DEBUG] Broadcasting {updates_count} grid updates, snapshot_id={self.snapshot_id}")
+                    
+                    snapshot_data = GridClashBinaryProtocol.encode_game_state(
+                        self.snapshot_id, self.sequence_num, game_state_data, full_grid=False)
+                    
+                    for client_addr in list(self.clients.keys()):
+                        try:
+                            self.server_socket.sendto(snapshot_data, client_addr)
+                            self.metrics['packets_sent'] += 1
+                            self.metrics['bytes_sent'] += len(snapshot_data)
+                        except: pass
             
+            # Handle game over (send only once)
+            if self.game_state.game_over and not self.game_over_sent:
+                with self.lock:
+                    self.broadcast_game_over()
+                    self.game_over_sent = True
+            
+            # Log metrics
             try:
                 if 'player_1' in self.game_state.players:
                     p1_pos = self.game_state.players['player_1']['position']
@@ -227,37 +254,24 @@ class GridClashUDPServer:
                     ])
             except: pass 
             
+            # Maintain precise 20Hz timing
             elapsed = time.time() - start_time
-            sleep_time = max(0, snapshot_interval - elapsed)
+            sleep_time = max(0.001, target_interval - elapsed)
             time.sleep(sleep_time)
 
-    def broadcast_game_state(self):
-        self.snapshot_id += 1
-        self.sequence_num += 1
-        
-        game_state_data = self.game_state.get_game_data(reset_dirty=True)
-        
-        # DEBUG: Print how many grid updates we're sending
-        updates_count = len(game_state_data.get('grid_updates', {}))
-        if updates_count > 0:
-            print(f"[DEBUG] Broadcasting {updates_count} grid updates, snapshot_id={self.snapshot_id}")
-        
-        snapshot_data = GridClashBinaryProtocol.encode_game_state(
-            self.snapshot_id, self.sequence_num, game_state_data, full_grid=False)
-        
-        for client_addr in list(self.clients.keys()):
-            try:
-                self.server_socket.sendto(snapshot_data, client_addr)
-                self.metrics['packets_sent'] += 1
-                self.metrics['bytes_sent'] += len(snapshot_data)
-            except: pass
-
     def broadcast_game_over(self):
+        """Broadcast game over message to all clients"""
         scoreboard = self.game_state.get_scoreboard()
         game_over_msg = GridClashBinaryProtocol.encode_game_over(
             self.game_state.winner_id, scoreboard)
+        
+        print(f"[BROADCAST] Sending GAME OVER to {len(self.clients)} clients")
+        
         for client_addr in list(self.clients.keys()):
-            try: self.server_socket.sendto(game_over_msg, client_addr)
+            try: 
+                self.server_socket.sendto(game_over_msg, client_addr)
+                self.metrics['packets_sent'] += 1
+                self.metrics['bytes_sent'] += len(game_over_msg)
             except: pass
 
     def send_reliable(self, address, message_func, *args):

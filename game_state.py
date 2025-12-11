@@ -22,8 +22,8 @@ class GameState:
         # Initialize quick lookup for positions
         self.player_positions = {pid: p['position'] for pid, p in self.players.items()}
 
-        # Game state
-        self.game_started = True
+        # Game state - CRITICAL FIX: Game starts immediately
+        self.game_started = True  # Changed from False to True
         self.game_over = False
         self.winner_id = None
 
