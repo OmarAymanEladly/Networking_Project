@@ -1,0 +1,28 @@
+Found 4 test runs.
+
+========================================
+ANALYZING: Baseline_1765481283
+  > PLAYER 1 STATS:
+    Avg Latency: 1.19 ms
+    Pos Error Mean: 0.0162 (Target < 0.5)
+    Pos Error 95th: 0.0000
+  > SCENARIO AVG LATENCY: 1.49 ms
+
+========================================
+ANALYZING: Delay_100ms_1765481425
+
+========================================
+ANALYZING: Loss_2_Percent_1765481330
+  > PLAYER 1 STATS:
+    Avg Latency: 1.58 ms
+    Pos Error Mean: 0.0303 (Target < 0.5)
+    Pos Error 95th: 0.0000
+  > SCENARIO AVG LATENCY: 1.75 ms
+
+========================================
+ANALYZING: Loss_5_Percent_1765481378
+  > PLAYER 1 STATS:
+    Avg Latency: 1.28 ms
+    Pos Error Mean: 0.0538 (Target < 0.5)
+    Pos Error 95th: 1.0000
+  > SCENARIO AVG LATENCY: 1.92 ms

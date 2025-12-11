@@ -69,26 +69,44 @@ class GridClashUDPClient:
              "recv_time_ms", "latency_ms", "render_x", "render_y"])
 
     def connect_to_server(self):
-        try:
-            connect_msg = b"CONNECT"
-            self.client_socket.sendto(connect_msg, self.server_address)
-            print(f">> Connecting to {self.server_host}:{self.server_port}...")
-            
-            start_time = time.time()
-            while time.time() - start_time < 5:
-                try:
-                    data, addr = self.client_socket.recvfrom(65536)
-                    message = GridClashBinaryProtocol.decode_message(data)
-                    if message and message['header']['msg_type'] == GridClashBinaryProtocol.MSG_WELCOME:
-                        self.handle_server_message(message, time.time())
-                        if self.player_id and "unknown" not in self.player_id:
-                            print(f"[OK] Connected! Assigned ID: {self.player_id}")
-                            return True
-                except: continue
-            return False
-        except Exception as e:
-            print(f"[ERROR] Connection failed: {e}")
-            return False
+        print(f">> Connecting to {self.server_host}:{self.server_port}...")
+        connect_msg = b"CONNECT"
+        
+        # 1. CRITICAL: Temporarily increase timeout to wait for the delayed packet
+        # 100ms delay means 200ms RTT. We need to wait at least that long.
+        self.client_socket.settimeout(1.0) 
+        
+        start_time = time.time()
+        
+        # Try for 10 seconds (gives plenty of time for delay scenarios)
+        while time.time() - start_time < 10:
+            try:
+                # 2. Send the connection request
+                self.client_socket.sendto(connect_msg, self.server_address)
+                
+                # 3. Wait up to 1.0s for the reply
+                data, addr = self.client_socket.recvfrom(65536)
+                message = GridClashBinaryProtocol.decode_message(data)
+                
+                if message and message['header']['msg_type'] == GridClashBinaryProtocol.MSG_WELCOME:
+                    self.handle_server_message(message, time.time())
+                    if self.player_id and "unknown" not in self.player_id:
+                        print(f"[OK] Connected! Assigned ID: {self.player_id}")
+                        
+                        # 4. IMPORTANT: Set timeout back to fast (0.01) for the main game loop
+                        self.client_socket.settimeout(0.01) 
+                        return True
+                        
+            except socket.timeout:
+                # If 1 second passes with no reply, the loop restarts and sends "CONNECT" again
+                continue
+            except Exception as e:
+                print(f"[RETRY] Connection error: {e}")
+                time.sleep(0.5)
+                continue
+                
+        print("[ERROR] Connection timed out.")
+        return False
 
     def start_network_thread(self):
         t = threading.Thread(target=self.receive_data)
