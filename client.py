@@ -69,44 +69,27 @@ class GridClashUDPClient:
              "recv_time_ms", "latency_ms", "render_x", "render_y"])
 
     def connect_to_server(self):
-        print(f">> Connecting to {self.server_host}:{self.server_port}...")
-        connect_msg = b"CONNECT"
-        
-        # 1. CRITICAL: Temporarily increase timeout to wait for the delayed packet
-        # 100ms delay means 200ms RTT. We need to wait at least that long.
-        self.client_socket.settimeout(1.0) 
-        
-        start_time = time.time()
-        
-        # Try for 10 seconds (gives plenty of time for delay scenarios)
-        while time.time() - start_time < 10:
-            try:
-                # 2. Send the connection request
-                self.client_socket.sendto(connect_msg, self.server_address)
+        try:
+            connect_msg = b"CONNECT"
+            self.client_socket.sendto(connect_msg, self.server_address)
+            print(f">> Connecting to {self.server_host}:{self.server_port}...")
+            
+            start_time = time.time()
+            while time.time() - start_time < 5:
                 
-                # 3. Wait up to 1.0s for the reply
-                data, addr = self.client_socket.recvfrom(65536)
-                message = GridClashBinaryProtocol.decode_message(data)
-                
-                if message and message['header']['msg_type'] == GridClashBinaryProtocol.MSG_WELCOME:
-                    self.handle_server_message(message, time.time())
-                    if self.player_id and "unknown" not in self.player_id:
-                        print(f"[OK] Connected! Assigned ID: {self.player_id}")
-                        
-                        # 4. IMPORTANT: Set timeout back to fast (0.01) for the main game loop
-                        self.client_socket.settimeout(0.01) 
-                        return True
-                        
-            except socket.timeout:
-                # If 1 second passes with no reply, the loop restarts and sends "CONNECT" again
-                continue
-            except Exception as e:
-                print(f"[RETRY] Connection error: {e}")
-                time.sleep(0.5)
-                continue
-                
-        print("[ERROR] Connection timed out.")
-        return False
+                try:
+                    data, addr = self.client_socket.recvfrom(65536)
+                    message = GridClashBinaryProtocol.decode_message(data)
+                    if message and message['header']['msg_type'] == GridClashBinaryProtocol.MSG_WELCOME:
+                        self.handle_server_message(message, time.time())
+                        if self.player_id and "unknown" not in self.player_id:
+                            print(f"[OK] Connected! Assigned ID: {self.player_id}")
+                            return True
+                except: continue
+            return False
+        except Exception as e:
+            print(f"[ERROR] Connection failed: {e}")
+            return False
 
     def start_network_thread(self):
         t = threading.Thread(target=self.receive_data)
@@ -173,8 +156,15 @@ class GridClashUDPClient:
         if msg_type == GridClashBinaryProtocol.MSG_WELCOME:
             self.player_id = payload.get('player_id')
             if payload: 
+                # Clear existing grid and update with new data
+                self.game_data['grid'] = {}
                 self.game_data.update(payload)
-                if 'grid' in payload: self.game_data['grid'] = payload['grid']
+                
+                # Ensure grid data is properly loaded
+                if 'grid' in payload:
+                    # Copy all grid cells
+                    for cell_id, cell_data in payload['grid'].items():
+                        self.game_data['grid'][cell_id] = cell_data.copy()
             if 'player_positions' in payload:
                 self.target_positions = payload['player_positions'].copy()
                 for pid, pos in self.target_positions.items():
@@ -192,7 +182,7 @@ class GridClashUDPClient:
                 self.game_data['game_over'] = payload.get('game_over', False)
                 self.game_data['winner_id'] = payload.get('winner_id', None)
                 
-                # Delta Decoding
+                # Delta Decoding - update grid with changes
                 for cell_id, cell_data in payload.get('grid', {}).items():
                     self.game_data['grid'][cell_id] = cell_data
                 
@@ -205,8 +195,11 @@ class GridClashUDPClient:
                 
         elif msg_type == GridClashBinaryProtocol.MSG_ACQUIRE_RESPONSE:
             if payload.get('success'):
-                if 'grid' not in self.game_data: self.game_data['grid'] = {}
-                self.game_data['grid'][payload['cell_id']] = {'owner_id': payload['owner_id']}
+                cell_id = payload['cell_id']
+                owner_id = payload.get('owner_id')
+                if 'grid' not in self.game_data: 
+                    self.game_data['grid'] = {}
+                self.game_data['grid'][cell_id] = {'owner_id': owner_id}
                 
         elif msg_type == GridClashBinaryProtocol.MSG_GAME_OVER:
             self.game_data['game_over'] = True
@@ -219,8 +212,7 @@ class GridClashUDPClient:
             current = self.render_positions[pid]
             
             if pid == self.player_id:
-                # If we are controlling this player, trust local prediction more (Client-side prediction)
-                # But if deviation is too large (reconciliation), snap back.
+                # If we are controlling this player, trust local prediction more
                 dist = ((target[0]-self.my_predicted_pos[0])**2 + (target[1]-self.my_predicted_pos[1])**2)**0.5
                 if dist > 2.0:
                      self.my_predicted_pos = list(target)
@@ -272,6 +264,11 @@ class GridClashUDPClient:
                 if current_pos[1] > 0: current_pos[1] -= 1
             elif keys[pygame.K_d] or keys[pygame.K_RIGHT]: 
                 if current_pos[1] < self.grid_size - 1: current_pos[1] += 1
+            elif keys[pygame.K_SPACE]:  # Continuous acquisition with Space
+                cell_id = f"{int(current_pos[0])}_{int(current_pos[1])}"
+                self.send_acquire_request(self.player_id, cell_id)
+                self.last_action_time = current_time
+                return  # Skip movement if acquiring
             
             if current_pos != original:
                 self.my_predicted_pos = current_pos
@@ -327,7 +324,7 @@ class GridClashUDPClient:
 
     def initialize_graphics(self):
         try:
-            pygame.init() # Already called in run, but safe to call again
+            pygame.init()
             self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
             pygame.display.set_caption(f"Grid Clash Client - {self.player_id}")
             self.font = pygame.font.Font(None, 24)
@@ -342,10 +339,25 @@ class GridClashUDPClient:
             for col in range(self.grid_size):
                 cell_id = f"{row}_{col}"
                 cell_color = self.COLORS['unclaimed']
+                
+                # Check if cell is owned and get owner ID
                 if 'grid' in self.game_data and cell_id in self.game_data['grid']:
-                    owner = self.game_data['grid'][cell_id]['owner_id']
-                    if owner in ['player_1','player_2','player_3','player_4']:
-                        cell_color = self.COLORS.get(owner, self.COLORS['dark_gray'])
+                    cell_data = self.game_data['grid'][cell_id]
+                    if 'owner_id' in cell_data:
+                        owner = cell_data['owner_id']
+                        
+                        # Map player ID to color
+                        if owner == 'player_1':
+                            cell_color = self.COLORS['player1']
+                        elif owner == 'player_2':
+                            cell_color = self.COLORS['player2']
+                        elif owner == 'player_3':
+                            cell_color = self.COLORS['player3']
+                        elif owner == 'player_4':
+                            cell_color = self.COLORS['player4']
+                        else:
+                            # Fallback: use dark gray for unknown owners
+                            cell_color = self.COLORS['dark_gray']
                 
                 rect = pygame.Rect(col*self.cell_size, row*self.cell_size, self.cell_size, self.cell_size)
                 pygame.draw.rect(self.screen, cell_color, rect)
@@ -353,7 +365,18 @@ class GridClashUDPClient:
         
         for pid, pos in self.render_positions.items():
             r, c = pos[0], pos[1]
-            color = self.COLORS.get(pid.replace('_',''), self.COLORS['white'])
+            # Map player ID to color for cursor
+            if pid == 'player_1':
+                color = self.COLORS['player1']
+            elif pid == 'player_2':
+                color = self.COLORS['player2']
+            elif pid == 'player_3':
+                color = self.COLORS['player3']
+            elif pid == 'player_4':
+                color = self.COLORS['player4']
+            else:
+                color = self.COLORS['white']
+                
             cursor_rect = pygame.Rect(c * self.cell_size, r * self.cell_size, self.cell_size, self.cell_size)
             width = 3 if pid != self.player_id else 5
             pygame.draw.rect(self.screen, color, cursor_rect, width)
@@ -362,10 +385,37 @@ class GridClashUDPClient:
         if not self.screen: return
         panel = pygame.Rect(self.grid_size * self.cell_size, 0, 450, self.screen_height)
         pygame.draw.rect(self.screen, self.COLORS['dark_gray'], panel)
+        
+        # Draw player info
+        y_offset = 20
+        for pid, player_data in self.game_data.get('players', {}).items():
+            if pid in self.COLORS:
+                color = self.COLORS[pid]
+            else:
+                color = self.COLORS['white']
+                
+            text = f"{pid}: {player_data.get('score', 0)} points"
+            if pid == self.player_id:
+                text = f">> {text} << (YOU)"
+                
+            txt_surface = self.font.render(text, True, color)
+            self.screen.blit(txt_surface, (self.grid_size * self.cell_size + 20, y_offset))
+            y_offset += 30
+        
+        # Draw latency info
         if self.metrics['latency_samples']:
             avg = sum(self.metrics['latency_samples'])/len(self.metrics['latency_samples'])
             txt = self.font.render(f"Ping: {avg:.0f}ms", True, (255,255,255))
-            self.screen.blit(txt, (620, 400))
+            self.screen.blit(txt, (self.grid_size * self.cell_size + 20, 150))
+        
+        # Draw game status
+        if self.game_data['game_over']:
+            status_text = f"GAME OVER! Winner: {self.game_data['winner_id']}"
+            txt = self.font.render(status_text, True, (255, 255, 0))
+            self.screen.blit(txt, (self.grid_size * self.cell_size + 20, 200))
+        elif self.game_data['game_started']:
+            txt = self.font.render("Game in progress", True, (0, 255, 0))
+            self.screen.blit(txt, (self.grid_size * self.cell_size + 20, 200))
 
     def run(self):
         # Always init pygame for event loop/timers, even if headless

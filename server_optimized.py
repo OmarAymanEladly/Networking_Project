@@ -7,13 +7,11 @@ from protocol import GridClashBinaryProtocol
 from game_state import GameState
 from logger import GameLogger
 import argparse
-import random
 import sys
 
 class GridClashUDPServer:
-    def __init__(self, host='0.0.0.0', port=5555, loss_rate=0.0, delay_sec=0.0):
-        self.loss_rate = loss_rate
-        self.delay_sec = delay_sec  # Store the simulated delay
+    def __init__(self, host='0.0.0.0', port=5555):
+        """Initialize UDP server WITHOUT simulation logic"""
         self.host = host
         self.port = port
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -56,7 +54,8 @@ class GridClashUDPServer:
             self.server_socket.bind((self.host, self.port))
             self.server_socket.settimeout(0.05) # Short timeout for loop responsiveness
             print(f">>> Grid Clash UDP Server started on {self.host}:{self.port}")
-            print(f">>> Config :: Loss: {self.loss_rate*100}% | Delay: {self.delay_sec*1000}ms")
+            print(f">>> Update rate: {self.update_rate} Hz")
+            print(">>> Using netem for network simulation (Linux)")
             
             # Initialize CSV Logger
             self.csv_logger = GameLogger("server_log.csv", 
@@ -71,20 +70,6 @@ class GridClashUDPServer:
             while self.running:
                 try:
                     data, address = self.server_socket.recvfrom(65536)
-
-                    # --- WINDOWS SIMULATION LOGIC ---
-                    
-                    # 1. Simulate Packet Loss
-                    if self.loss_rate > 0 and random.random() < self.loss_rate:
-                        continue 
-
-                    # 2. Simulate Latency (Application Layer)
-                    if self.delay_sec > 0:
-                        # Add 10% jitter to make it realistic
-                        jitter = self.delay_sec * 0.1
-                        actual_delay = random.uniform(self.delay_sec - jitter, self.delay_sec + jitter)
-                        time.sleep(actual_delay)
-
                     self.handle_client_message(data, address)
                     
                 except socket.timeout:
@@ -157,7 +142,14 @@ class GridClashUDPServer:
                 self.metrics['client_count'] = len(self.clients)
                 print(f">> New connection: {address} assigned to {assigned_id}")
                 
+                # Get current game state with FULL grid for new clients
                 current_state = self.game_state.get_game_data(reset_dirty=False)
+                
+                # DEBUG: Print how many grid cells we're sending
+                grid_size = len(current_state.get('grid', {}))
+                print(f"[DEBUG] Sending welcome to {assigned_id} with {grid_size} grid cells")
+                
+                # Force full grid for welcome message
                 welcome_msg = GridClashBinaryProtocol.encode_welcome(assigned_id, current_state)
                 self.send_to_client(address, welcome_msg)
 
@@ -176,10 +168,15 @@ class GridClashUDPServer:
         
         if success:
             # Critical: Send reliably
-            self.send_reliable(address, GridClashBinaryProtocol.encode_acquire_response, cell_id, True, player_id)
+            self.send_reliable(address, GridClashBinaryProtocol.encode_acquire_response, 
+                              cell_id, True, player_id)
             self.check_game_end()
         else:
-            response_msg = GridClashBinaryProtocol.encode_acquire_response(cell_id, False, result)
+            # If result is a player ID (meaning cell is already owned), send that as owner_id
+            if isinstance(result, str) and result.startswith('player_'):
+                response_msg = GridClashBinaryProtocol.encode_acquire_response(cell_id, False, result)
+            else:
+                response_msg = GridClashBinaryProtocol.encode_acquire_response(cell_id, False, None)
             self.send_to_client(address, response_msg)
 
     def handle_player_move(self, address, payload):
@@ -239,6 +236,12 @@ class GridClashUDPServer:
         self.sequence_num += 1
         
         game_state_data = self.game_state.get_game_data(reset_dirty=True)
+        
+        # DEBUG: Print how many grid updates we're sending
+        updates_count = len(game_state_data.get('grid_updates', {}))
+        if updates_count > 0:
+            print(f"[DEBUG] Broadcasting {updates_count} grid updates, snapshot_id={self.snapshot_id}")
+        
         snapshot_data = GridClashBinaryProtocol.encode_game_state(
             self.snapshot_id, self.sequence_num, game_state_data, full_grid=False)
         
@@ -318,6 +321,9 @@ class GridClashUDPServer:
             print(f"\n>> SERVER METRICS [Uptime: {uptime:.1f}s]")
             print(f"   Clients: {self.metrics['client_count']}")
             print(f"   Packets Sent: {self.metrics['packets_sent']}")
+            print(f"   Packets Received: {self.metrics['packets_received']}")
+            print(f"   Bytes Sent: {self.metrics['bytes_sent']}")
+            print(f"   Bytes Received: {self.metrics['bytes_received']}")
 
     def disconnect_client(self, address):
         with self.lock:
@@ -336,9 +342,8 @@ class GridClashUDPServer:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--loss", type=float, default=0.0, help="Packet loss rate (0.0 - 1.0)")
-    parser.add_argument("--delay", type=float, default=0.0, help="Latency in seconds (e.g. 0.1)")
+    # REMOVED: --loss and --delay arguments since we use netem
     args = parser.parse_args()
 
-    server = GridClashUDPServer(loss_rate=args.loss, delay_sec=args.delay)
+    server = GridClashUDPServer()
     server.start_server()

@@ -127,11 +127,15 @@ class GameState:
         Get complete game state for broadcasting.
         reset_dirty: If True, clears the dirty_cells list after reading.
         """
+        # IMPORTANT: Ensure we include all necessary data
         data = {
-            'grid': self.grid,
-            'grid_updates': self.dirty_cells.copy(), # Send only changed cells
-            'players': self.players,
-            'player_positions': self.player_positions,
+            'grid': self.grid.copy(),  # Send full grid copy
+            'grid_updates': self.dirty_cells.copy(), # Send only changed cells for delta
+            'players': {pid: {
+                'score': p['score'],
+                'position': p['position'].copy()
+            } for pid, p in self.players.items()},
+            'player_positions': self.player_positions.copy(),
             'game_started': self.game_started,
             'game_over': self.game_over,
             'winner_id': self.winner_id,

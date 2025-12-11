@@ -87,32 +87,59 @@ class GridClashBinaryProtocol:
     
     @staticmethod
     def encode_welcome(player_id, game_state):
-        """Encode welcome message with compressed game state"""
-        # Compress grid: only send owner_id, remove timestamps
+        """Encode welcome message with FULL game state for new clients"""
+        # IMPORTANT: Send the FULL grid for new clients
         full_grid = game_state.get('grid', {})
-        optimized_grid = {cid: {'owner_id': data['owner_id']} for cid, data in full_grid.items()}
+        # Ensure we include all grid cells
+        optimized_grid = {}
+        for cid, data in full_grid.items():
+            if isinstance(data, dict) and 'owner_id' in data:
+                optimized_grid[cid] = {'owner_id': data['owner_id']}
+            else:
+                # Handle different data formats
+                optimized_grid[cid] = {'owner_id': data}
+        
+        # Ensure we have player positions
+        player_positions = game_state.get('player_positions', {})
+        if not player_positions and 'players' in game_state:
+            # Extract positions from players dict if not directly available
+            player_positions = {}
+            for pid, pdata in game_state['players'].items():
+                if 'position' in pdata:
+                    player_positions[pid] = pdata['position']
 
         compressed_state = {
             'player_id': player_id,
             'players': {
                 pid: {
-                    'score': data['score'],
-                    'position': data['position']
-                } for pid, data in game_state['players'].items()
+                    'score': data.get('score', 0),
+                    'position': data.get('position', [0, 0])
+                } for pid, data in game_state.get('players', {}).items()
             },
-            'player_positions': game_state['player_positions'],
-            'game_started': game_state['game_started'],
-            'game_over': game_state['game_over'],
-            'grid_size': game_state['grid_size'],
-            'grid': optimized_grid # Include full grid for new players
+            'player_positions': player_positions,
+            'game_started': game_state.get('game_started', False),
+            'game_over': game_state.get('game_over', False),
+            'grid_size': game_state.get('grid_size', 20),
+            'grid': optimized_grid  # Send FULL grid for new clients
         }
         
         payload = json.dumps(compressed_state).encode('utf-8')
         
+        # If payload is too big, we need to split it or compress
         if len(payload) > GridClashBinaryProtocol.MAX_PAYLOAD_SIZE:
-            print("[WARN] Welcome payload too big, truncating grid")
-            compressed_state['grid'] = {} 
+            print(f"[WARN] Welcome payload {len(payload)} bytes, truncating for {player_id}")
+            # Send at least some grid data
+            # Take first 100 cells to stay within limit
+            limited_grid = {}
+            count = 0
+            for cid, data in optimized_grid.items():
+                if count < 100:
+                    limited_grid[cid] = data
+                    count += 1
+            
+            compressed_state['grid'] = limited_grid
             payload = json.dumps(compressed_state).encode('utf-8')
+            print(f"[INFO] Truncated to {len(limited_grid)} cells, {len(payload)} bytes")
         
         header = GridClashBinaryProtocol.create_header(
             GridClashBinaryProtocol.MSG_WELCOME,
@@ -127,25 +154,32 @@ class GridClashBinaryProtocol:
     def encode_game_state(snapshot_id, seq_num, game_state, full_grid=False):
         """Encode game state snapshot with delta compression"""
         
-        # Delta Encoding Logic:
-        # If full_grid is False, try to send 'grid_updates' (only changed cells)
+        # IMPORTANT: Send grid updates if available, otherwise send full grid
         grid_data = {}
-        if not full_grid and 'grid_updates' in game_state:
-             grid_data = game_state['grid_updates']
+        if not full_grid and 'grid_updates' in game_state and game_state['grid_updates']:
+            grid_data = game_state['grid_updates']
         else:
-             grid_data = game_state.get('grid', {})
+            grid_data = game_state.get('grid', {})
+        
+        # Ensure player positions are included
+        player_positions = game_state.get('player_positions', {})
+        if not player_positions and 'players' in game_state:
+            player_positions = {}
+            for pid, pdata in game_state['players'].items():
+                if 'position' in pdata:
+                    player_positions[pid] = pdata['position']
 
         compressed_state = {
             'players': {
                 pid: {
-                    'score': data['score'],
-                    'position': data['position']
-                } for pid, data in game_state['players'].items()
+                    'score': data.get('score', 0),
+                    'position': data.get('position', [0, 0])
+                } for pid, data in game_state.get('players', {}).items()
             },
-            'player_positions': game_state['player_positions'],
-            'game_over': game_state['game_over'],
-            'winner_id': game_state['winner_id'],
-            'grid': grid_data # This contains only DELTA updates usually
+            'player_positions': player_positions,
+            'game_over': game_state.get('game_over', False),
+            'winner_id': game_state.get('winner_id', None),
+            'grid': grid_data  # This contains DELTA updates or full grid
         }
         
         payload = json.dumps(compressed_state).encode('utf-8')
@@ -176,7 +210,6 @@ class GridClashBinaryProtocol:
         
         return header + payload
     
-    # REPLACE the old encode_acquire_response method with this:
     @staticmethod
     def encode_acquire_response(cell_id, success, owner_id=None, seq_num=0):
         payload = json.dumps({
