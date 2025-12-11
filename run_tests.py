@@ -46,111 +46,68 @@ def setup_netem():
         return None
 
 def apply_netem(interface, loss=0, delay=0, jitter=0):
-    """Apply netem network impairment using tc command"""
+    """Simple, reliable netem application"""
     if not interface:
-        print("⚠️  WARNING: No interface specified")
         return False
     
-    # First, COMPLETELY clear any existing netem configuration
-    print(f"🧹 Clearing existing netem configuration on {interface}...")
-    
-    # Try multiple cleanup methods
-    cleanup_attempts = [
-        # Remove root qdisc
-        ['sudo', 'tc', 'qdisc', 'del', 'dev', interface, 'root'],
-        # Remove any handle (more thorough)
-        ['sudo', 'tc', 'qdisc', 'del', 'dev', interface, 'handle', 'ffff:'],
-        # Emergency: flush all qdiscs
-        ['sudo', 'tc', 'qdisc', 'del', 'dev', interface, 'parent', '1:'],
-    ]
-    
-    for attempt in cleanup_attempts:
-        try:
-            result = subprocess.run(attempt, 
-                                   capture_output=True, 
-                                   stderr=subprocess.DEVNULL,
-                                   timeout=3)
-            if result.returncode == 0:
-                print(f"  ✅ Cleared with: {' '.join(attempt[2:])}")
-        except:
-            pass
-    
-    time.sleep(2)  # Give time for cleanup to take effect
-    
-    # Check current configuration
-    try:
-        check_cmd = ['sudo', 'tc', 'qdisc', 'show', 'dev', interface]
-        result = subprocess.run(check_cmd, capture_output=True, text=True, timeout=3)
-        print(f"  📋 Current config after cleanup: {result.stdout.strip() or 'None'}")
-    except:
-        pass
-    
-    # If no impairment needed, just return success
-    if loss == 0 and delay == 0 and jitter == 0:
-        print("✅ No netem parameters needed (baseline)")
+    # If no impairment needed
+    if loss == 0 and delay == 0:
         return True
     
-    # Build netem command
-    tc_cmd = ['sudo', 'tc', 'qdisc', 'add', 'dev', interface, 'root', 'netem']
+    print(f"🔧 Setting up: loss={loss}%, delay={delay}ms")
+    
+    # FIRST: Always remove existing
+    print("   Removing existing qdisc...")
+    subprocess.run(['sudo', 'tc', 'qdisc', 'del', 'dev', interface, 'root'],
+                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(2)
+    
+    # Build command
+    cmd = ['sudo', 'tc', 'qdisc', 'add', 'dev', interface, 'root', 'netem']
     
     if loss > 0 and delay > 0:
-        # Both loss and delay
-        tc_cmd.extend(['loss', f'{loss}%', 'delay', f'{delay}ms'])
+        cmd.extend(['loss', f'{loss}%', 'delay', f'{delay}ms'])
         if jitter > 0:
-            tc_cmd.append(f'{jitter}ms')
+            cmd.append(f'{jitter}ms')
     elif loss > 0:
-        # Only loss
-        tc_cmd.extend(['loss', f'{loss}%'])
+        cmd.extend(['loss', f'{loss}%'])
     elif delay > 0:
-        # Only delay
-        tc_cmd.extend(['delay', f'{delay}ms'])
+        cmd.extend(['delay', f'{delay}ms'])
         if jitter > 0:
-            tc_cmd.append(f'{jitter}ms')
+            cmd.append(f'{jitter}ms')
     
-    print(f"🔧 Applying netem: {' '.join(tc_cmd)}")
+    print(f"   Running: {' '.join(cmd)}")
     
     try:
-        result = subprocess.run(tc_cmd, capture_output=True, text=True, timeout=10)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        
         if result.returncode == 0:
-            print("✅ Netem applied successfully")
+            print("   ✅ Success!")
             
-            # Verify the configuration
-            verify_cmd = ['sudo', 'tc', 'qdisc', 'show', 'dev', interface]
-            result = subprocess.run(verify_cmd, capture_output=True, text=True)
-            print(f"📋 New netem config: {result.stdout.strip()}")
-            
+            # Quick verify
+            verify = subprocess.run(['sudo', 'tc', 'qdisc', 'show', 'dev', interface],
+                                  capture_output=True, text=True)
+            print(f"   Config: {verify.stdout.strip()}")
             return True
         else:
-            print(f"❌ Failed to apply netem. Error: {result.stderr}")
+            print(f"   ❌ Failed: {result.stderr}")
             
-            # Try alternative method with handle
-            print("🔄 Trying alternative method...")
-            alt_cmd = ['sudo', 'tc', 'qdisc', 'add', 'dev', interface, 'root', 'handle', '1:0', 'netem']
-            if loss > 0 and delay > 0:
-                alt_cmd.extend(['loss', f'{loss}%', 'delay', f'{delay}ms'])
-                if jitter > 0:
-                    alt_cmd.append(f'{jitter}ms')
-            elif loss > 0:
-                alt_cmd.extend(['loss', f'{loss}%'])
-            elif delay > 0:
-                alt_cmd.extend(['delay', f'{delay}ms'])
-                if jitter > 0:
-                    alt_cmd.append(f'{jitter}ms')
+            # Try ONE fallback
+            print("   Trying fallback method...")
             
-            print(f"  Trying: {' '.join(alt_cmd)}")
-            result = subprocess.run(alt_cmd, capture_output=True, text=True, timeout=5)
+            # Use replace instead of add
+            cmd[3] = 'replace'  # Change 'add' to 'replace'
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            
             if result.returncode == 0:
-                print("✅ Netem applied with alternative method")
+                print("   ✅ Fallback succeeded!")
                 return True
             else:
-                print(f"❌ Alternative method also failed: {result.stderr}")
+                print(f"   ❌ Fallback also failed")
                 return False
                 
-    except subprocess.TimeoutExpired:
-        print("❌ Timeout applying netem")
-        return False
     except Exception as e:
-        print(f"❌ Error applying netem: {e}")
+        print(f"   ❌ Error: {e}")
         return False
 
 def remove_netem(interface):
