@@ -1,41 +1,33 @@
-Found 5 test runs.
+Found 4 test runs.
 
 ========================================
-ANALYZING: Baseline_1765487692
+ANALYZING: Baseline_1765491052
   > PLAYER 1 STATS:
-    Avg Latency: 247.23 ms
-    Pos Error Mean: 0.0923 (Target < 0.5)
+    Avg Latency: 104.79 ms
+    Pos Error Mean: 0.3544 (Target < 0.5)
     Pos Error 95th: 1.0000
-  > PLAYER 1 STATS:
-    Avg Latency: 105.60 ms
-    Pos Error Mean: nan (Target < 0.5)
-    Pos Error 95th: nan
-  > SCENARIO AVG LATENCY: 119.41 ms
+  > SCENARIO AVG LATENCY: 105.71 ms
 
 ========================================
-ANALYZING: Delay_100ms_1765481425
-  [SKIP] No server_log.csv found.
-
-========================================
-ANALYZING: Delay_100ms_1765487890
+ANALYZING: Delay_100ms_1765491241
   > PLAYER 1 STATS:
-    Avg Latency: 109.77 ms
-    Pos Error Mean: 0.6292 (Target < 0.5)
-    Pos Error 95th: 2.9236
-  > SCENARIO AVG LATENCY: 111.08 ms
-
-========================================
-ANALYZING: Loss_2_Percent_1765487755
-  > PLAYER 1 STATS:
-    Avg Latency: 119.92 ms
-    Pos Error Mean: 0.3333 (Target < 0.5)
+    Avg Latency: 102.54 ms
+    Pos Error Mean: 0.4057 (Target < 0.5)
     Pos Error 95th: 1.0000
-  > SCENARIO AVG LATENCY: 108.43 ms
+  > SCENARIO AVG LATENCY: 106.15 ms
 
 ========================================
-ANALYZING: Loss_5_Percent_1765487823
+ANALYZING: Loss_2_Percent_1765491115
   > PLAYER 1 STATS:
-    Avg Latency: 107.38 ms
-    Pos Error Mean: 0.4394 (Target < 0.5)
+    Avg Latency: 106.26 ms
+    Pos Error Mean: 0.3494 (Target < 0.5)
     Pos Error 95th: 1.0000
-  > SCENARIO AVG LATENCY: 108.42 ms
+  > SCENARIO AVG LATENCY: 106.21 ms
+
+========================================
+ANALYZING: Loss_5_Percent_1765491178
+  > PLAYER 1 STATS:
+    Avg Latency: 107.36 ms
+    Pos Error Mean: 0.6534 (Target < 0.5)
+    Pos Error 95th: 3.1623
+  > SCENARIO AVG LATENCY: 106.38 ms
