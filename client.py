@@ -11,7 +11,22 @@ from logger import GameLogger
 
 class GridClashUDPClient:
     def __init__(self, server_host='127.0.0.1', server_port=5555):
-        self.server_host = server_host
+
+        def detect_server_ip(default_host):
+            import subprocess
+            # If default is localhost and we're testing with netem,
+            # try to get the actual interface IP
+            if default_host == '127.0.0.1':
+                # Check if we should use interface IP (for netem testing)
+                cmd = "ip -4 addr show enp0s3 2>/dev/null | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}'"
+                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+                iface_ip = result.stdout.strip()
+                if iface_ip:
+                    print(f"📡 Using interface IP for netem: {iface_ip}")
+                    return iface_ip
+            return default_host
+        
+        self.server_host = detect_server_ip(server_host)
         self.server_port = server_port
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.client_socket.settimeout(0.01) # Non-blocking

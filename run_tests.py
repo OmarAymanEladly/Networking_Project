@@ -50,133 +50,157 @@ def simple_cleanup():
     time.sleep(1)
     print("   ✅ Cleanup done")
 
-def apply_netem_working(interface, loss=0, delay=0, jitter=0):
-    """Netem that actually works - FIXED for VirtualBox"""
+def apply_netem_working(loss=0, delay=0, jitter=0):
+    """Apply netem to enp0s3 - this WILL work!"""
+    interface = "enp0s3"
     
-    # ALWAYS clean first
-    simple_cleanup()
+    print(f"📡 Applying netem to {interface}")
     
-    if loss > 0:
-        # Use iptables for loss (REAL network layer)
-        prob = loss / 100.0
-        # FIXED: Apply loss to BOTH directions for UDP traffic on port 5555
-        cmd1 = f"sudo iptables -A INPUT -p udp --dport 5555 -m statistic --mode random --probability {prob} -j DROP"
-        cmd2 = f"sudo iptables -A OUTPUT -p udp --sport 5555 -m statistic --mode random --probability {prob} -j DROP"
-        subprocess.run(cmd1, shell=True)
-        subprocess.run(cmd2, shell=True)
-        print(f"✅ REAL packet loss: {loss}% via iptables (both directions)")
+    # Clean FIRST
+    cleanup_cmds = [
+        f"sudo tc qdisc del dev {interface} root 2>/dev/null",
+        f"sudo tc qdisc del dev {interface} ingress 2>/dev/null",
+        f"sudo iptables -F 2>/dev/null",
+        f"sudo iptables -t mangle -F 2>/dev/null"
+    ]
     
+    for cmd in cleanup_cmds:
+        subprocess.run(cmd, shell=True, 
+                      stdout=subprocess.DEVNULL, 
+                      stderr=subprocess.DEVNULL)
+    
+    time.sleep(1)
+    
+    # Apply delay (MOST IMPORTANT FOR YOUR TEST)
     if delay > 0:
-        # FIXED: Use the CORRECT netem syntax that works in VirtualBox
-        # The issue might be that delay needs jitter parameter even if jitter=0
+        # EXACT command from PDF Appendix A
         if jitter > 0:
             cmd = f"sudo tc qdisc add dev {interface} root netem delay {delay}ms {jitter}ms"
+            print(f"Running: {cmd}  (PDF Example: delay 100ms 10ms)")
         else:
-            # Even with 0 jitter, we need to specify distribution
             cmd = f"sudo tc qdisc add dev {interface} root netem delay {delay}ms"
+            print(f"Running: {cmd}")
         
-        print(f"Running: {cmd}")
         result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
         
         if result.returncode == 0:
-            # VERIFY it actually worked
-            time.sleep(0.5)
-            check_cmd = f"sudo tc qdisc show dev {interface}"
-            check_result = subprocess.run(check_cmd, shell=True, capture_output=True, text=True)
+            print(f"✅ SUCCESS! Applied {delay}ms delay to {interface}")
             
-            if "delay" in check_result.stdout:
-                print(f"✅ REAL delay: {delay}ms via tc")
-                print(f"   Verification: {check_result.stdout.strip()}")
-            else:
-                # Try alternative method
-                print(f"⚠️  tc rule not showing, trying alternative...")
-                apply_delay_alternative(interface, delay, jitter)
+            # Verify
+            check = subprocess.run(f"sudo tc qdisc show dev {interface}", 
+                                 shell=True, capture_output=True, text=True)
+            print(f"Verification: {check.stdout.strip()}")
+            
+            # Quick test to confirm it's working
+            test_delay_applied(interface, delay)
+            return True
         else:
-            print(f"❌ tc failed: {result.stderr}")
-            # Try alternative method WITHOUT falling back to socket-level
-            apply_delay_alternative(interface, delay, jitter)
+            print(f"❌ Failed: {result.stderr}")
+            return False
+    
+    # Apply loss if needed
+    if loss > 0:
+        cmd = f"sudo tc qdisc add dev {interface} root netem loss {loss}%"
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print(f"✅ Applied {loss}% loss")
+            return True
     
     return True
 
 
-def apply_delay_alternative(interface, delay, jitter):
-    """Alternative method to apply delay when standard tc fails"""
-    print(f"🔧 Trying alternative delay method...")
+def test_delay_applied(interface, expected_delay_ms):
+    """Quick test to verify delay is applied"""
+    print(f"\n🔍 Testing if {expected_delay_ms}ms delay is working...")
     
-    # Method 1: Use more complex tc setup
     try:
-        # Delete any existing
-        subprocess.run(f"sudo tc qdisc del dev {interface} root", shell=True,
-                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        import socket
+        import threading
         
-        # Add prio qdisc first, then netem on a branch
-        cmds = [
-            f"sudo tc qdisc add dev {interface} root handle 1: prio",
-            f"sudo tc qdisc add dev {interface} parent 1:3 handle 30: netem delay {delay}ms"
-        ]
-        
-        for cmd in cmds:
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            if result.returncode != 0:
-                print(f"   Failed: {result.stderr}")
-                raise Exception("tc failed")
-        
-        # Send all traffic through the delayed branch
-        cmd = f"sudo tc filter add dev {interface} protocol ip parent 1:0 prio 3 u32 match ip dst 127.0.0.1 flowid 1:3"
-        subprocess.run(cmd, shell=True)
-        
-        print(f"✅ Applied {delay}ms delay via alternative tc method")
-        
-        # Verify
-        check = subprocess.run(f"sudo tc qdisc show dev {interface}", 
-                             shell=True, capture_output=True, text=True)
-        print(f"   Current rules: {check.stdout}")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Alternative method failed: {e}")
-        
-        # Method 2: Use ifb (Intermediate Functional Block) device
-        print(f"🔧 Trying IFB method...")
-        try:
-            # Load ifb module
-            subprocess.run("sudo modprobe ifb", shell=True)
-            subprocess.run("sudo ip link set dev ifb0 up", shell=True)
-            
-            # Redirect lo -> ifb0
-            subprocess.run(f"sudo tc qdisc add dev {interface} handle ffff: ingress", shell=True)
-            subprocess.run(f"sudo tc filter add dev {interface} parent ffff: protocol ip u32 match u32 0 0 action mirred egress redirect dev ifb0", shell=True)
-            
-            # Apply delay on ifb0
-            subprocess.run(f"sudo tc qdisc add dev ifb0 root netem delay {delay}ms", shell=True)
-            
-            print(f"✅ Applied {delay}ms delay via IFB method")
-            return True
-            
-        except Exception as e2:
-            print(f"❌ IFB method also failed: {e2}")
-            
-            # LAST RESORT: Use iptables TOS marking with tc
-            print(f"🔧 Trying TOS marking method...")
+        # Create a simple echo server
+        def echo_server():
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.bind(('127.0.0.1', 9999))
+            sock.settimeout(2.0)
             try:
-                # Clear everything
-                simple_cleanup()
+                data, addr = sock.recvfrom(1024)
+                sock.sendto(b"echo", addr)
+            except:
+                pass
+        
+        # Start echo server
+        server_thread = threading.Thread(target=echo_server, daemon=True)
+        server_thread.start()
+        time.sleep(0.5)
+        
+        # Send and measure RTT
+        client_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        client_sock.settimeout(2.0)
+        
+        start = time.time()
+        client_sock.sendto(b"test", ('127.0.0.1', 9999))
+        
+        try:
+            data, addr = client_sock.recvfrom(1024)
+            rtt_ms = (time.time() - start) * 1000
+            
+            # With netem delay, RTT should be ~2x the one-way delay
+            expected_rtt = expected_delay_ms * 2
+            
+            print(f"   Measured RTT: {rtt_ms:.1f}ms")
+            print(f"   Expected RTT with {expected_delay_ms}ms delay: ~{expected_rtt}ms")
+            
+            if rtt_ms > expected_rtt * 0.7:  # At least 70% of expected
+                print(f"   ✅ Netem delay is WORKING correctly!")
+            else:
+                print(f"   ⚠️  Delay may not be fully applied")
                 
-                # Mark packets
-                subprocess.run("sudo iptables -t mangle -A OUTPUT -p udp -j MARK --set-mark 1", shell=True)
-                
-                # Apply tc with filter
-                subprocess.run(f"sudo tc qdisc add dev {interface} root handle 1: prio", shell=True)
-                subprocess.run(f"sudo tc qdisc add dev {interface} parent 1:1 handle 10: netem delay {delay}ms", shell=True)
-                subprocess.run(f"sudo tc filter add dev {interface} parent 1: protocol ip prio 1 handle 1 fw flowid 1:1", shell=True)
-                
-                print(f"✅ Applied {delay}ms delay via TOS marking")
-                return True
-                
-            except Exception as e3:
-                print(f"❌ All delay methods failed: {e3}")
-                print(f"⚠️  Network delay simulation may not be working")
-                return False
+        except socket.timeout:
+            print(f"   ⚠️  Timeout - check if echo server received packet")
+            
+    except Exception as e:
+        print(f"   ⚠️  Test error: {e}")
+
+
+def simple_cleanup():
+    """Cleanup for enp0s3"""
+    print("\n🧹 Cleaning up enp0s3...")
+    
+    # Clean tc rules
+    try:
+        subprocess.run(['sudo', 'tc', 'qdisc', 'del', 'dev', 'enp0s3', 'root'], 
+                      stdout=subprocess.DEVNULL, 
+                      stderr=subprocess.DEVNULL,
+                      timeout=2)
+        print("   Cleaned tc rules from enp0s3")
+    except:
+        pass
+    
+    # Clean iptables rules
+    try:
+        subprocess.run(['sudo', 'iptables', '-F'], 
+                      stdout=subprocess.DEVNULL, 
+                      stderr=subprocess.DEVNULL,
+                      timeout=2)
+        subprocess.run(['sudo', 'iptables', '-t', 'mangle', '-F'],
+                      stdout=subprocess.DEVNULL,
+                      stderr=subprocess.DEVNULL,
+                      timeout=2)
+        print("   Cleaned iptables rules")
+    except:
+        pass
+    
+    # Clean old CSV files
+    for f in os.listdir("."):
+        if f.endswith(".csv") and os.path.isfile(f):
+            try:
+                os.remove(f)
+            except:
+                pass
+    
+    time.sleep(1)
+    print("   ✅ Cleanup done")
 
 def run_scenario(name, loss, delay, jitter):
     """Run a single test scenario - SIMPLIFIED"""

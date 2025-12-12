@@ -7,13 +7,25 @@ from protocol import GridClashBinaryProtocol
 from game_state import GameState
 from logger import GameLogger
 import argparse
-import sys
+import subprocess
+
 
 class GridClashUDPServer:
     def __init__(self, host='0.0.0.0', port=5555):
         """Initialize UDP server WITHOUT simulation logic"""
         self.host = host
         self.port = port
+
+        def get_interface_ip():
+            import subprocess
+            # Try to get enp0s3 IP, fallback to specified host
+            cmd = "ip -4 addr show enp0s3 2>/dev/null | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}' || echo '0.0.0.0'"
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            ip = result.stdout.strip()
+            return ip if ip else host
+        
+        interface_ip = get_interface_ip()
+        print(f"Server will bind to: {interface_ip}:{port}")
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         
