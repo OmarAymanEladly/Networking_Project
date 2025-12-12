@@ -1,0 +1,847 @@
+>>> Grid Clash UDP Server started on 0.0.0.0:5555
+>>> Update Rate: 20Hz | Loss Simulation: 0.0%
+>> New connection: ('127.0.0.1', 35382) assigned to player_1
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 0_0
+✅ player_1 claimed cell 0_0. Score: 1
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 0_0
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 0_0
+❌ Player player_1 (RED) FAILED - Already owned by you
+>> New connection: ('127.0.0.1', 57254) assigned to player_2
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 19_19
+✅ player_2 claimed cell 19_19. Score: 1
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 19_19
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 19_19
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 0_0
+❌ Player player_1 (RED) FAILED - Already owned by you
+>> New connection: ('127.0.0.1', 56121) assigned to player_3
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 0_0
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_19
+✅ player_3 claimed cell 1_19. Score: 1
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 1_19
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+>> New connection: ('127.0.0.1', 45912) assigned to player_4
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 19_19
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 19_19
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_0
+✅ player_4 claimed cell 19_0. Score: 1
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 19_0
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 0_2
+✅ player_1 claimed cell 0_2. Score: 2
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 0_2
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 0_2
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_18
+✅ player_3 claimed cell 0_18. Score: 2
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 0_18
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 18_19
+✅ player_2 claimed cell 18_19. Score: 2
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 18_19
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 18_19
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 1_3
+✅ player_1 claimed cell 1_3. Score: 3
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 1_3
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 1_3
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 17_19
+✅ player_2 claimed cell 17_19. Score: 3
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 17_19
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 17_19
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 18_1
+✅ player_4 claimed cell 18_1. Score: 2
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 18_1
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 18_1
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 0_5
+✅ player_1 claimed cell 0_5. Score: 4
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 0_5
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 0_5
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_17
+✅ player_3 claimed cell 1_17. Score: 3
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 1_17
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_17
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 18_17
+✅ player_2 claimed cell 18_17. Score: 4
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 18_17
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 18_17
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 16_2
+✅ player_4 claimed cell 16_2. Score: 3
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 16_2
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 0_4
+✅ player_1 claimed cell 0_4. Score: 5
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 0_4
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 16_2
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 0_4
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_17
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_17
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 19_16
+✅ player_2 claimed cell 19_16. Score: 5
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 19_16
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 19_16
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 17_1
+✅ player_4 claimed cell 17_1. Score: 4
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 17_1
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 17_1
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 1_4
+✅ player_1 claimed cell 1_4. Score: 6
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 1_4
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 1_4
+❌ Player player_1 (RED) FAILED - Already owned by you
+
+>> SERVER METRICS [Uptime: 10.0s]
+   Clients: 4
+   Packets Sent: 535
+   Data Sent: 175.3 KB
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_18
+✅ player_3 claimed cell 1_18. Score: 4
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 1_18
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 19_16
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 19_16
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 18_2
+✅ player_4 claimed cell 18_2. Score: 5
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 18_2
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 18_2
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 3_4
+✅ player_1 claimed cell 3_4. Score: 7
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 3_4
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 3_4
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_17
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_17
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 19_14
+✅ player_2 claimed cell 19_14. Score: 6
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 19_14
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 19_14
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_2
+✅ player_4 claimed cell 19_2. Score: 6
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 19_2
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_3
+✅ player_1 claimed cell 4_3. Score: 8
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 4_3
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_2
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_3
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 17_16
+✅ player_2 claimed cell 17_16. Score: 7
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 17_16
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 17_16
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 18_0
+✅ player_4 claimed cell 18_0. Score: 7
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 18_0
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_5
+✅ player_1 claimed cell 5_5. Score: 9
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 5_5
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 18_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_5
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 16_17
+✅ player_2 claimed cell 16_17. Score: 8
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 16_17
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 16_17
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_6
+✅ player_1 claimed cell 4_6. Score: 10
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 4_6
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_6
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_17
+✅ player_3 claimed cell 0_17. Score: 5
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 0_17
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_17
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 16_16
+✅ player_2 claimed cell 16_16. Score: 9
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 16_16
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 16_16
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 2_6
+✅ player_1 claimed cell 2_6. Score: 11
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 2_6
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 2_6
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_19
+✅ player_3 claimed cell 0_19. Score: 6
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 0_19
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 15_17
+✅ player_2 claimed cell 15_17. Score: 10
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 15_17
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 15_17
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_1
+✅ player_4 claimed cell 19_1. Score: 8
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 19_1
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_6
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_1
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_6
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 15_14
+✅ player_2 claimed cell 15_14. Score: 11
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 15_14
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 15_14
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 18_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_7
+✅ player_1 claimed cell 4_7. Score: 12
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 4_7
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 18_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_7
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_17
+✅ player_3 claimed cell 2_17. Score: 7
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 2_17
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_17
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 18_12
+✅ player_2 claimed cell 18_12. Score: 12
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 18_12
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 18_12
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_2
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_7
+✅ player_1 claimed cell 6_7. Score: 13
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 6_7
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_2
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_7
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 19_13
+✅ player_2 claimed cell 19_13. Score: 13
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 19_13
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 19_13
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_2
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_8
+✅ player_1 claimed cell 5_8. Score: 14
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 5_8
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_2
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_8
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_18
+✅ player_3 claimed cell 2_18. Score: 8
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 2_18
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 19_10
+✅ player_2 claimed cell 19_10. Score: 14
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 19_10
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 19_10
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 18_2
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_10
+✅ player_1 claimed cell 5_10. Score: 15
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 5_10
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 18_2
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+
+>> SERVER METRICS [Uptime: 20.0s]
+   Clients: 4
+   Packets Sent: 1477
+   Data Sent: 484.9 KB
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_10
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 4_19
+✅ player_3 claimed cell 4_19. Score: 9
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 4_19
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 4_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 16_10
+✅ player_2 claimed cell 16_10. Score: 15
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 16_10
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 16_10
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_5
+✅ player_4 claimed cell 19_5. Score: 9
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 19_5
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_9
+✅ player_1 claimed cell 4_9. Score: 16
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 4_9
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 19_5
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_9
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 4_18
+✅ player_3 claimed cell 4_18. Score: 10
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 4_18
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 4_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 15_11
+✅ player_2 claimed cell 15_11. Score: 16
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 15_11
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 15_11
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 17_6
+✅ player_4 claimed cell 17_6. Score: 10
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 17_6
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_11
+✅ player_1 claimed cell 5_11. Score: 17
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 5_11
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 17_6
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_11
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_17
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_17
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 15_12
+✅ player_2 claimed cell 15_12. Score: 17
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 15_12
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 15_12
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 17_5
+✅ player_4 claimed cell 17_5. Score: 11
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 17_5
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 7_12
+✅ player_1 claimed cell 7_12. Score: 18
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 7_12
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 17_5
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 7_12
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 15_11
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 15_11
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 15_5
+✅ player_4 claimed cell 15_5. Score: 12
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 15_5
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_9
+✅ player_1 claimed cell 6_9. Score: 19
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 6_9
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 15_5
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_9
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 14_12
+✅ player_2 claimed cell 14_12. Score: 18
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 14_12
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 14_12
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 15_5
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_9
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 15_5
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_9
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 13_12
+✅ player_2 claimed cell 13_12. Score: 19
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 13_12
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 13_12
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 15_5
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 7_6
+✅ player_1 claimed cell 7_6. Score: 20
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 7_6
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 15_5
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 7_6
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_16
+✅ player_3 claimed cell 0_16. Score: 11
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 0_16
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_16
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 12_13
+✅ player_2 claimed cell 12_13. Score: 20
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 12_13
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 12_13
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 14_4
+✅ player_4 claimed cell 14_4. Score: 13
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 14_4
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 9_4
+✅ player_1 claimed cell 9_4. Score: 21
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 9_4
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 14_4
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 9_4
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_17
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_17
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 11_12
+✅ player_2 claimed cell 11_12. Score: 21
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 11_12
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 11_12
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 14_4
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 11_5
+✅ player_1 claimed cell 11_5. Score: 22
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 11_5
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 14_4
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 11_5
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_17
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_17
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 10_12
+✅ player_2 claimed cell 10_12. Score: 22
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 10_12
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 10_12
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 14_2
+✅ player_4 claimed cell 14_2. Score: 14
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 14_2
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 12_5
+✅ player_1 claimed cell 12_5. Score: 23
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 12_5
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 14_2
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 12_5
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+
+>> SERVER METRICS [Uptime: 30.0s]
+   Clients: 4
+   Packets Sent: 2407
+   Data Sent: 794.7 KB
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 10_11
+✅ player_2 claimed cell 10_11. Score: 23
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 10_11
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 10_11
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 13_3
+✅ player_4 claimed cell 13_3. Score: 15
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 13_3
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 12_7
+✅ player_1 claimed cell 12_7. Score: 24
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 12_7
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 13_3
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 12_7
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 11_12
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 11_12
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 15_1
+✅ player_4 claimed cell 15_1. Score: 16
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 15_1
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 11_6
+✅ player_1 claimed cell 11_6. Score: 25
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 11_6
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 15_1
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 11_6
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_19
+✅ player_3 claimed cell 2_19. Score: 12
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 2_19
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 11_10
+✅ player_2 claimed cell 11_10. Score: 24
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 11_10
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 11_10
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 16_0
+✅ player_4 claimed cell 16_0. Score: 17
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 16_0
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 11_7
+✅ player_1 claimed cell 11_7. Score: 26
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 11_7
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 16_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 11_7
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 4_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 4_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 8_11
+✅ player_2 claimed cell 8_11. Score: 25
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 8_11
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 8_11
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 14_0
+✅ player_4 claimed cell 14_0. Score: 18
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 14_0
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 8_5
+✅ player_1 claimed cell 8_5. Score: 27
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 8_5
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 14_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 8_5
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 6_17
+✅ player_3 claimed cell 6_17. Score: 13
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 6_17
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 6_17
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 10_10
+✅ player_2 claimed cell 10_10. Score: 26
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 10_10
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 10_10
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 9_0
+✅ player_4 claimed cell 9_0. Score: 19
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 9_0
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 8_5
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 9_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 8_5
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 5_18
+✅ player_3 claimed cell 5_18. Score: 14
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 5_18
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 5_18
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 8_9
+✅ player_2 claimed cell 8_9. Score: 27
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 8_9
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 8_9
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 9_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_3
+✅ player_1 claimed cell 6_3. Score: 28
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 6_3
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 9_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_3
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 6_19
+✅ player_3 claimed cell 6_19. Score: 15
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 6_19
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 6_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 9_9
+✅ player_2 claimed cell 9_9. Score: 28
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 9_9
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 9_9
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 11_0
+✅ player_4 claimed cell 11_0. Score: 20
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 11_0
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_2
+✅ player_1 claimed cell 5_2. Score: 29
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 5_2
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 11_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_2
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 7_19
+✅ player_3 claimed cell 7_19. Score: 16
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 7_19
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 7_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 10_9
+✅ player_2 claimed cell 10_9. Score: 29
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 10_9
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 10_9
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 12_0
+✅ player_4 claimed cell 12_0. Score: 21
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 12_0
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 3_2
+✅ player_1 claimed cell 3_2. Score: 30
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 3_2
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 12_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 3_2
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 5_19
+✅ player_3 claimed cell 5_19. Score: 17
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 5_19
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 5_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 12_9
+✅ player_2 claimed cell 12_9. Score: 30
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 12_9
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 12_9
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 12_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_2
+✅ player_1 claimed cell 4_2. Score: 31
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 4_2
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 12_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_2
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 5_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 5_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 11_9
+✅ player_2 claimed cell 11_9. Score: 31
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 11_9
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 11_9
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 13_1
+✅ player_4 claimed cell 13_1. Score: 22
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 13_1
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 13_1
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_3
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_3
+❌ Player player_1 (RED) FAILED - Already owned by you
+
+>> SERVER METRICS [Uptime: 40.0s]
+   Clients: 4
+   Packets Sent: 3347
+   Data Sent: 1106.5 KB
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 5_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 5_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 11_10
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 11_10
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 12_1
+✅ player_4 claimed cell 12_1. Score: 23
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 12_1
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 3_5
+✅ player_1 claimed cell 3_5. Score: 32
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 3_5
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 12_1
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 3_5
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 6_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 6_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 10_11
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 10_11
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 13_0
+✅ player_4 claimed cell 13_0. Score: 24
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 13_0
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 13_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 3_5
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 3_5
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 7_16
+✅ player_3 claimed cell 7_16. Score: 18
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 7_16
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 7_16
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 12_9
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 12_9
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 15_0
+✅ player_4 claimed cell 15_0. Score: 25
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 15_0
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 15_0
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_6
+✅ player_1 claimed cell 6_6. Score: 33
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 6_6
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_6
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 9_17
+✅ player_3 claimed cell 9_17. Score: 19
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 9_17
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 9_17
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 12_7
+❌ Player player_2 (BLUE) FAILED - cell 12_7 already owned by player_1 (RED)
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 12_7
+❌ Player player_2 (BLUE) FAILED - cell 12_7 already owned by player_1 (RED)
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 15_4
+✅ player_4 claimed cell 15_4. Score: 26
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 15_4
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_8
+✅ player_1 claimed cell 6_8. Score: 34
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 6_8
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 15_4
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_8
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 11_16
+✅ player_3 claimed cell 11_16. Score: 20
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 11_16
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 11_16
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 11_6
+❌ Player player_2 (BLUE) FAILED - cell 11_6 already owned by player_1 (RED)
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 11_6
+❌ Player player_2 (BLUE) FAILED - cell 11_6 already owned by player_1 (RED)
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 13_6
+✅ player_4 claimed cell 13_6. Score: 27
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 13_6
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 13_6
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_7
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_7
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 12_14
+✅ player_3 claimed cell 12_14. Score: 21
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 12_14
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 12_14
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 13_5
+✅ player_2 claimed cell 13_5. Score: 32
+✅ Player player_2 (BLUE) SUCCESSFULLY claimed cell 13_5
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 13_5
+❌ Player player_2 (BLUE) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 12_5
+❌ Player player_4 (YELLOW) FAILED - cell 12_5 already owned by player_1 (RED)
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 12_5
+❌ Player player_4 (YELLOW) FAILED - cell 12_5 already owned by player_1 (RED)
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_7
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_7
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 10_14
+✅ player_3 claimed cell 10_14. Score: 22
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 10_14
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 10_14
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 12_5
+❌ Player player_2 (BLUE) FAILED - cell 12_5 already owned by player_1 (RED)
+[ACQUIRE] Player player_2 (BLUE) attempting to claim cell 12_5
+❌ Player player_2 (BLUE) FAILED - cell 12_5 already owned by player_1 (RED)
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 12_4
+✅ player_4 claimed cell 12_4. Score: 28
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 12_4
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 12_4
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 10_14
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 10_14
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 10_5
+✅ player_4 claimed cell 10_5. Score: 29
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 10_5
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 10_5
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 11_13
+✅ player_3 claimed cell 11_13. Score: 23
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 11_13
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 11_13
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 10_4
+✅ player_4 claimed cell 10_4. Score: 30
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 10_4
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 10_4
+❌ Player player_4 (YELLOW) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 10_12
+❌ Player player_3 (GREEN) FAILED - cell 10_12 already owned by player_2 (BLUE)
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 10_12
+❌ Player player_3 (GREEN) FAILED - cell 10_12 already owned by player_2 (BLUE)
+
+>> SERVER METRICS [Uptime: 50.0s]
+   Clients: 4
+   Packets Sent: 4251
+   Data Sent: 1411.0 KB
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 8_5
+❌ Player player_4 (YELLOW) FAILED - cell 8_5 already owned by player_1 (RED)
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 8_5
+❌ Player player_4 (YELLOW) FAILED - cell 8_5 already owned by player_1 (RED)
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 10_14
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 10_14
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 6_4
+✅ player_4 claimed cell 6_4. Score: 31
+✅ Player player_4 (YELLOW) SUCCESSFULLY claimed cell 6_4
+[ACQUIRE] Player player_4 (YELLOW) attempting to claim cell 6_4
+❌ Player player_4 (YELLOW) FAILED - Already owned by you

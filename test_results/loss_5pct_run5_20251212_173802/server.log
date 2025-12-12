@@ -1,0 +1,271 @@
+>>> Grid Clash UDP Server started on 0.0.0.0:5555
+>>> Update Rate: 20Hz | Loss Simulation: 0.0%
+>> New connection: ('127.0.0.1', 59319) assigned to player_1
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 0_1
+✅ player_1 claimed cell 0_1. Score: 1
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 0_1
+>> New connection: ('127.0.0.1', 54842) assigned to player_2
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 1_0
+✅ player_1 claimed cell 1_0. Score: 2
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 1_0
+>> New connection: ('127.0.0.1', 54770) assigned to player_3
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_19
+✅ player_3 claimed cell 0_19. Score: 1
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 0_19
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 0_1
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_19
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 0_1
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 3_19
+✅ player_3 claimed cell 3_19. Score: 2
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 3_19
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 0_4
+✅ player_1 claimed cell 0_4. Score: 3
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 0_4
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_19
+✅ player_3 claimed cell 1_19. Score: 3
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 1_19
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 2_6
+✅ player_1 claimed cell 2_6. Score: 4
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 2_6
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_18
+✅ player_3 claimed cell 2_18. Score: 4
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 2_18
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_7
+✅ player_1 claimed cell 4_7. Score: 5
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 4_7
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 3_17
+✅ player_3 claimed cell 3_17. Score: 5
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 3_17
+
+>> SERVER METRICS [Uptime: 10.0s]
+   Clients: 3
+   Packets Sent: 371
+   Data Sent: 132.2 KB
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 2_7
+✅ player_1 claimed cell 2_7. Score: 6
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 2_7
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 2_7
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_16
+✅ player_3 claimed cell 2_16. Score: 6
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 2_16
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_5
+✅ player_1 claimed cell 5_5. Score: 7
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 5_5
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_16
+✅ player_3 claimed cell 0_16. Score: 7
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 0_16
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 3_5
+✅ player_1 claimed cell 3_5. Score: 8
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 3_5
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_16
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 2_4
+✅ player_1 claimed cell 2_4. Score: 9
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 2_4
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 3_17
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 3_17
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 2_4
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_14
+✅ player_3 claimed cell 2_14. Score: 8
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 2_14
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 4_5
+✅ player_1 claimed cell 4_5. Score: 10
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 4_5
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_12
+✅ player_3 claimed cell 0_12. Score: 9
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 0_12
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_5
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_14
+✅ player_3 claimed cell 0_14. Score: 10
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 0_14
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 7_6
+✅ player_1 claimed cell 7_6. Score: 11
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 7_6
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 0_13
+✅ player_3 claimed cell 0_13. Score: 11
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 0_13
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 7_6
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_12
+✅ player_3 claimed cell 1_12. Score: 12
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 1_12
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 8_6
+✅ player_1 claimed cell 8_6. Score: 12
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 8_6
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_14
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+
+>> SERVER METRICS [Uptime: 20.0s]
+   Clients: 3
+   Packets Sent: 1000
+   Data Sent: 356.1 KB
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 9_7
+✅ player_1 claimed cell 9_7. Score: 13
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 9_7
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_16
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 7_7
+✅ player_1 claimed cell 7_7. Score: 14
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 7_7
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_17
+✅ player_3 claimed cell 2_17. Score: 13
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 2_17
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_7
+✅ player_1 claimed cell 6_7. Score: 15
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 6_7
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_15
+✅ player_3 claimed cell 2_15. Score: 14
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 2_15
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_9
+✅ player_1 claimed cell 6_9. Score: 16
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 6_9
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_15
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 8_12
+✅ player_1 claimed cell 8_12. Score: 17
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 8_12
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 3_12
+✅ player_3 claimed cell 3_12. Score: 15
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 3_12
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 8_11
+✅ player_1 claimed cell 8_11. Score: 18
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 8_11
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 1_13
+✅ player_3 claimed cell 1_13. Score: 16
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 1_13
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 8_13
+✅ player_1 claimed cell 8_13. Score: 19
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 8_13
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_12
+✅ player_3 claimed cell 2_12. Score: 17
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 2_12
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 9_11
+✅ player_1 claimed cell 9_11. Score: 20
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 9_11
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_13
+✅ player_3 claimed cell 2_13. Score: 18
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 2_13
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 8_10
+✅ player_1 claimed cell 8_10. Score: 21
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 8_10
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 2_14
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 7_11
+✅ player_1 claimed cell 7_11. Score: 22
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 7_11
+
+>> SERVER METRICS [Uptime: 30.0s]
+   Clients: 3
+   Packets Sent: 1620
+   Data Sent: 580.4 KB
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 4_14
+✅ player_3 claimed cell 4_14. Score: 19
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 4_14
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 7_11
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 4_15
+✅ player_3 claimed cell 4_15. Score: 20
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 4_15
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 8_11
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 4_14
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 8_12
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 5_12
+✅ player_3 claimed cell 5_12. Score: 21
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 5_12
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 11_14
+✅ player_1 claimed cell 11_14. Score: 23
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 11_14
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 5_12
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 9_14
+✅ player_1 claimed cell 9_14. Score: 24
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 9_14
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 5_10
+✅ player_3 claimed cell 5_10. Score: 22
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 5_10
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 5_10
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 7_14
+✅ player_1 claimed cell 7_14. Score: 25
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 7_14
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 4_10
+✅ player_3 claimed cell 4_10. Score: 23
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 4_10
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_14
+✅ player_1 claimed cell 6_14. Score: 26
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 6_14
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 8_10
+❌ Player player_3 (GREEN) FAILED - cell 8_10 already owned by player_1 (RED)
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_13
+✅ player_1 claimed cell 5_13. Score: 27
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 5_13
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 9_10
+✅ player_3 claimed cell 9_10. Score: 24
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 9_10
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_13
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 8_8
+✅ player_3 claimed cell 8_8. Score: 25
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 8_8
+
+>> SERVER METRICS [Uptime: 40.0s]
+   Clients: 3
+   Packets Sent: 2236
+   Data Sent: 802.3 KB
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_17
+✅ player_1 claimed cell 5_17. Score: 28
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 5_17
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 8_6
+❌ Player player_3 (GREEN) FAILED - cell 8_6 already owned by player_1 (RED)
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_17
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 10_5
+✅ player_3 claimed cell 10_5. Score: 26
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 10_5
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_16
+✅ player_1 claimed cell 6_16. Score: 29
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 6_16
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 6_16
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 10_6
+✅ player_3 claimed cell 10_6. Score: 27
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 10_6
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_18
+✅ player_1 claimed cell 5_18. Score: 30
+✅ Player player_1 (RED) SUCCESSFULLY claimed cell 5_18
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 9_7
+❌ Player player_3 (GREEN) FAILED - cell 9_7 already owned by player_1 (RED)
+[ACQUIRE] Player player_1 (RED) attempting to claim cell 5_18
+❌ Player player_1 (RED) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 11_8
+✅ player_3 claimed cell 11_8. Score: 28
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 11_8
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 10_7
+✅ player_3 claimed cell 10_7. Score: 29
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 10_7
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 8_7
+✅ player_3 claimed cell 8_7. Score: 30
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 8_7
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 9_6
+✅ player_3 claimed cell 9_6. Score: 31
+✅ Player player_3 (GREEN) SUCCESSFULLY claimed cell 9_6
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 10_5
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+[ACQUIRE] Player player_3 (GREEN) attempting to claim cell 9_6
+❌ Player player_3 (GREEN) FAILED - Already owned by you
+
+>> SERVER METRICS [Uptime: 50.0s]
+   Clients: 3
+   Packets Sent: 2844
+   Data Sent: 1022.6 KB
