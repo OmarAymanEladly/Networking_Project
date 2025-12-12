@@ -4,6 +4,8 @@ import json
 
 class GridClashBinaryProtocol:
     """Binary protocol for Grid Clash game state synchronization"""
+
+    _start_time = time.perf_counter()
     
     # Protocol constants
     PROTOCOL_ID = b'GRID'  # 4-byte ASCII identifier
@@ -22,7 +24,7 @@ class GridClashBinaryProtocol:
     MSG_CONNECT_REQUEST = 0x0A  # Simple connection request
     
     # Header format: < little-endian, 4s=4byte string, B=1byte, I=4byte, Q=8byte, H=2byte
-    HEADER_FORMAT = '<4s B B I I Q H'
+    HEADER_FORMAT = '<4s B B I I Q H I'
     HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
     
     # Class variables for redundancy
@@ -33,7 +35,10 @@ class GridClashBinaryProtocol:
     @staticmethod
     def create_header(msg_type, snapshot_id, seq_num, payload_len):
         """Create binary header"""
-        timestamp = int(time.time() * 1000)  # milliseconds
+        elapsed_ms = int((time.perf_counter() - GridClashBinaryProtocol._start_time) * 1000)
+        
+
+        checksum = 0
         
         header = struct.pack(
             GridClashBinaryProtocol.HEADER_FORMAT,
@@ -42,8 +47,9 @@ class GridClashBinaryProtocol:
             msg_type,
             snapshot_id,
             seq_num,
-            timestamp,
-            payload_len
+            elapsed_ms,
+            payload_len,
+            checksum
         )
             
         return header
