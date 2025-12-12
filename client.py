@@ -528,7 +528,7 @@ class GridClashUDPClient:
                 clock.tick(60)
             else:
                 # Save CPU in headless mode
-                time.sleep(0.016)
+                time.sleep(0.05)
                 
         if self.csv_logger:
             self.csv_logger.close()

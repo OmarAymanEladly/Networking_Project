@@ -40,7 +40,7 @@ class ResultsAnalyzer:
         }
     
     def load_scenario_data(self, scenario_name):
-        """Load all CSV files for a given scenario"""
+        """Load all CSV files for a given scenario (new .sh format)"""
         print(f"  Loading data for {scenario_name}...")
         
         data = {
@@ -50,38 +50,26 @@ class ResultsAnalyzer:
             'run_dirs': []
         }
         
-        # Find all run directories for this scenario
-        scenario_path = os.path.join(self.results_dir, scenario_name)
-        if not os.path.exists(scenario_path):
-            print(f"  Warning: Scenario directory not found: {scenario_path}")
-            return data
+        # NEW: Look for directories that start with scenario_name
+        scenario_pattern = os.path.join(self.results_dir, f"{scenario_name}_*")
+        run_dirs = glob.glob(scenario_pattern)
         
-        # Get all run directories
-        run_dirs = glob.glob(os.path.join(scenario_path, "run_*"))
+        # Filter out files, keep only directories
+        run_dirs = [d for d in run_dirs if os.path.isdir(d)]
+        
         if not run_dirs:
-            print(f"  Warning: No run directories found in {scenario_path}")
-            print(f"  Looking for pattern: {os.path.join(scenario_path, 'run_*')}")
+            print(f"  Warning: No directories found for {scenario_name}")
+            print(f"  Looking for pattern: {scenario_pattern}")
             return data
         
-        print(f"  Found {len(run_dirs)} run directories")
+        print(f"  Found {len(run_dirs)} directories")
         
         for run_dir in sorted(run_dirs):
             print(f"    Processing: {os.path.basename(run_dir)}")
             data['run_dirs'].append(run_dir)
             
-            # Load metadata if exists
-            metadata_file = os.path.join(run_dir, "test_metadata.json")
-            if os.path.exists(metadata_file):
-                try:
-                    with open(metadata_file, 'r') as f:
-                        metadata = json.load(f)
-                        metadata['run_dir'] = run_dir
-                        data['metadata'].append(metadata)
-                except Exception as e:
-                    print(f"    Warning: Could not read metadata: {e}")
-            
             # Load client CSV files
-            client_pattern = os.path.join(run_dir, "client_log_*.csv")
+            client_pattern = os.path.join(run_dir, "client_*.csv")
             client_files = glob.glob(client_pattern)
             
             for csv_file in client_files:
@@ -96,31 +84,29 @@ class ResultsAnalyzer:
                     print(f"    Warning: Could not read {csv_file}: {e}")
             
             # Load server CSV files
-            server_file = os.path.join(run_dir, "server_log.csv")
-            if os.path.exists(server_file):
+            server_pattern = os.path.join(run_dir, "server.csv")
+            if os.path.exists(server_pattern):
                 try:
-                    df = pd.read_csv(server_file)
+                    df = pd.read_csv(server_pattern)
                     df['scenario'] = scenario_name
                     df['run_dir'] = run_dir
                     df['run_name'] = os.path.basename(run_dir)
                     data['server_logs'].append(df)
-                    print(f"      Loaded server data: server_log.csv ({len(df)} rows)")
+                    print(f"      Loaded server data: server.csv ({len(df)} rows)")
                 except Exception as e:
-                    print(f"    Warning: Could not read {server_file}: {e}")
-            else:
-                # Try alternative names
-                alt_pattern = os.path.join(run_dir, "*server*.csv")
-                alt_files = glob.glob(alt_pattern)
-                for alt_file in alt_files:
-                    try:
-                        df = pd.read_csv(alt_file)
-                        df['scenario'] = scenario_name
-                        df['run_dir'] = run_dir
-                        data['server_logs'].append(df)
-                        print(f"      Loaded server data (alt): {os.path.basename(alt_file)}")
-                        break
-                    except:
-                        pass
+                    print(f"    Warning: Could not read {server_pattern}: {e}")
+            
+            # Also look for server_log.csv (old naming)
+            server_log_pattern = os.path.join(run_dir, "server_log.csv")
+            if os.path.exists(server_log_pattern) and len(data['server_logs']) == 0:
+                try:
+                    df = pd.read_csv(server_log_pattern)
+                    df['scenario'] = scenario_name
+                    df['run_dir'] = run_dir
+                    data['server_logs'].append(df)
+                    print(f"      Loaded server data: server_log.csv ({len(df)} rows)")
+                except:
+                    pass
         
         print(f"  Total client logs: {len(data['client_logs'])}")
         print(f"  Total server logs: {len(data['server_logs'])}")
@@ -553,9 +539,9 @@ class ResultsAnalyzer:
         df.to_csv(csv_path, index=False)
         print(f"  ✅ Saved CSV: {csv_path}")
         
-        # Save formatted text report
+        # Save formatted text report with ASCII characters only
         txt_path = 'analysis_summary.txt'
-        with open(txt_path, 'w') as f:
+        with open(txt_path, 'w', encoding='utf-8') as f:  # Explicit UTF-8 encoding
             f.write("="*80 + "\n")
             f.write("GRID CLASH - EXPERIMENTAL RESULTS SUMMARY\n")
             f.write("="*80 + "\n")
@@ -577,52 +563,52 @@ class ResultsAnalyzer:
                     
                     if 'latency_mean' in metrics:
                         f.write(f"Latency: {metrics['latency_mean']:.1f}ms mean, "
-                               f"{metrics['latency_median']:.1f}ms median, "
-                               f"{metrics['latency_95th']:.1f}ms 95th %ile\n")
+                            f"{metrics['latency_median']:.1f}ms median, "
+                            f"{metrics['latency_95th']:.1f}ms 95th %ile\n")
                     
                     if 'jitter_mean' in metrics:
                         f.write(f"Jitter: {metrics['jitter_mean']:.1f}ms mean, "
-                               f"{metrics['jitter_95th']:.1f}ms 95th %ile\n")
+                            f"{metrics['jitter_95th']:.1f}ms 95th %ile\n")
                     
                     if 'packet_loss_rate' in metrics:
                         f.write(f"Packet loss: {metrics['packet_loss_rate']*100:.2f}% "
-                               f"({metrics.get('sequence_gaps', 0)} gaps)\n")
+                            f"({metrics.get('sequence_gaps', 0)} gaps)\n")
                     
                     if 'server_cpu_mean' in metrics:
                         f.write(f"Server CPU: {metrics['server_cpu_mean']:.1f}% mean, "
-                               f"{metrics['server_cpu_max']:.1f}% max\n")
+                            f"{metrics['server_cpu_max']:.1f}% max\n")
                     
                     if errors:
                         f.write(f"Position error: {np.mean(errors):.3f} mean, "
-                               f"{np.median(errors):.3f} median, "
-                               f"{np.percentile(errors, 95):.3f} 95th %ile\n")
+                            f"{np.median(errors):.3f} median, "
+                            f"{np.percentile(errors, 95):.3f} 95th %ile\n")
                     
-                    # PDF Acceptance Criteria
+                    # PDF Acceptance Criteria (ASCII only for Windows)
                     f.write("\nPDF ACCEPTANCE CRITERIA:\n")
                     
                     if scenario == "baseline":
                         latency_ok = metrics.get('latency_mean', 999) <= 50
                         cpu_ok = metrics.get('server_cpu_mean', 999) <= 60
                         
-                        f.write(f"  Latency ≤ 50ms: {'✅ PASS' if latency_ok else '❌ FAIL'} "
-                               f"({metrics.get('latency_mean', 0):.1f}ms)\n")
-                        f.write(f"  CPU ≤ 60%: {'✅ PASS' if cpu_ok else '❌ FAIL'} "
-                               f"({metrics.get('server_cpu_mean', 0):.1f}%)\n")
+                        f.write(f"  Latency <= 50ms: {'[PASS]' if latency_ok else '[FAIL]'} "
+                            f"({metrics.get('latency_mean', 0):.1f}ms)\n")
+                        f.write(f"  CPU <= 60%: {'[PASS]' if cpu_ok else '[FAIL]'} "
+                            f"({metrics.get('server_cpu_mean', 0):.1f}%)\n")
                     
                     elif scenario == "loss_2pct":
                         if errors:
                             error_ok = np.mean(errors) <= 0.5
-                            f.write(f"  Position error ≤ 0.5 units: "
-                                   f"{'✅ PASS' if error_ok else '❌ FAIL'} "
-                                   f"({np.mean(errors):.3f} units)\n")
+                            f.write(f"  Position error <= 0.5 units: "
+                                f"{'[PASS]' if error_ok else '[FAIL]'} "
+                                f"({np.mean(errors):.3f} units)\n")
                     
                     elif scenario == "loss_5pct":
-                        # Critical events delivered ≥99% within 200ms
+                        # Critical events delivered >=99% within 200ms
                         if 'latency_95th' in metrics:
                             critical_ok = metrics['latency_95th'] <= 200
-                            f.write(f"  95th %ile latency ≤ 200ms: "
-                                   f"{'✅ PASS' if critical_ok else '❌ FAIL'} "
-                                   f"({metrics['latency_95th']:.1f}ms)\n")
+                            f.write(f"  95th %ile latency <= 200ms: "
+                                f"{'[PASS]' if critical_ok else '[FAIL]'} "
+                                f"({metrics['latency_95th']:.1f}ms)\n")
                     
                     f.write("\n")
         
