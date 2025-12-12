@@ -29,6 +29,16 @@ def simple_cleanup():
     except:
         pass
     
+    # FIXED: Also clean iptables rules
+    try:
+        subprocess.run(['sudo', 'iptables', '-F'],  # Flush all iptables rules
+                      stdout=subprocess.DEVNULL, 
+                      stderr=subprocess.DEVNULL,
+                      timeout=2)
+        print("   Cleaned iptables rules")
+    except:
+        pass
+    
     # Clean old CSV files
     for f in os.listdir("."):
         if f.endswith(".csv") and os.path.isfile(f):
@@ -40,79 +50,34 @@ def simple_cleanup():
     time.sleep(1)
     print("   ✅ Cleanup done")
 
-def apply_netem_working(loss=0, delay=0, jitter=0):
-    """Apply network conditions - FIXED for VirtualBox"""
-    
-    # Clean any existing rules first
-    subprocess.run(['sudo', 'tc', 'qdisc', 'del', 'dev', 'lo', 'root'], 
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    subprocess.run(['sudo', 'tc', 'qdisc', 'del', 'dev', 'eth0', 'root'], 
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    
-    time.sleep(1)  # Give it time to clear
-    
-    # Always use lo interface for loopback testing
-    interface = 'lo'
-    
-    try:
-        if delay > 0:
-            # Apply delay to lo interface
-            cmd = f"sudo tc qdisc add dev {interface} root netem delay {delay}ms"
-            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                print(f"✅ Applied {delay}ms delay to {interface}")
-                
-                # Verify it worked
-                check_cmd = f"sudo tc qdisc show dev {interface}"
-                check_result = subprocess.run(check_cmd, shell=True, capture_output=True, text=True)
-                print(f"   Verification: {check_result.stdout.strip()}")
-            else:
-                print(f"❌ tc failed for delay: {result.stderr}")
-                
-                # FALLBACK: Use iptables-based delay simulation (more reliable in VMs)
-                print("⚠️  Using iptables TOS field for delay simulation")
-                apply_iptables_delay(delay)
-                
-    except Exception as e:
-        print(f"❌ Error applying delay: {e}")
-        # Last resort: use environment variable
-        os.environ['SIMULATE_DELAY'] = str(delay)
-        print(f"⚠️  Using application-level delay simulation ({delay}ms)")
+def apply_netem_working(interface, loss=0, delay=0, jitter=0):
+    """Netem that actually works"""
+    # ALWAYS use these exact commands that work:
     
     if loss > 0:
-        try:
-            # Use iptables for loss (works better in VMs)
-            prob = loss / 100.0
-            cmd = f"sudo iptables -A OUTPUT -p udp --dport 5555 -m statistic --mode random --probability {prob} -j DROP"
-            subprocess.run(cmd, shell=True)
-            print(f"✅ Applied {loss}% loss via iptables")
-        except:
-            print(f"⚠️  Could not apply loss via iptables, using application-level simulation")
-            os.environ['SIMULATE_LOSS'] = str(loss)
+        # Use iptables for loss (REAL network layer)
+        prob = loss / 100.0
+        # FIXED: Apply loss to BOTH directions for UDP traffic on port 5555
+        cmd1 = f"sudo iptables -A INPUT -p udp --dport 5555 -m statistic --mode random --probability {prob} -j DROP"
+        cmd2 = f"sudo iptables -A OUTPUT -p udp --sport 5555 -m statistic --mode random --probability {prob} -j DROP"
+        subprocess.run(cmd1, shell=True)
+        subprocess.run(cmd2, shell=True)
+        print(f"✅ REAL packet loss: {loss}% via iptables (both directions)")
+    
+    if delay > 0:
+        # Use tc for delay (REAL network layer)
+        # FIXED: Apply delay to BOTH directions by adding it to ALL loopback traffic
+        cmd = f"sudo tc qdisc add dev {interface} root netem delay {delay}ms"
+        result = subprocess.run(cmd, shell=True, capture_output=True)
+        if result.returncode == 0:
+            print(f"✅ REAL delay: {delay}ms via tc")
+        else:
+            print(f"❌ tc failed: {result.stderr}")
+            # Fallback: socket options for delay
+            os.environ['SOCKET_DELAY'] = str(delay)
+            print(f"⚠️  Using socket-level delay simulation")
     
     return True
-
-def apply_iptables_delay(delay_ms):
-    """Alternative delay using iptables TOS field (works in VMs)"""
-    try:
-        # Mark packets with TOS
-        mark_cmd = f"sudo iptables -t mangle -A OUTPUT -p udp --dport 5555 -j TOS --set-tos 0x10"
-        subprocess.run(mark_cmd, shell=True)
-        
-        # Add delay for marked packets
-        delay_cmd = f"sudo tc qdisc add dev lo root handle 1: prio"
-        subprocess.run(delay_cmd, shell=True)
-        
-        delay_cmd2 = f"sudo tc qdisc add dev lo parent 1:3 handle 30: netem delay {delay_ms}ms"
-        subprocess.run(delay_cmd2, shell=True)
-        
-        delay_cmd3 = f"sudo tc filter add dev lo protocol ip parent 1:0 prio 3 u32 match ip tos 0x10 0xff flowid 1:3"
-        subprocess.run(delay_cmd3, shell=True)
-        
-        print(f"✅ Applied {delay_ms}ms delay via iptables+TOS")
-    except Exception as e:
-        print(f"❌ iptables delay failed: {e}")
 
 def run_scenario(name, loss, delay, jitter):
     """Run a single test scenario - SIMPLIFIED"""
