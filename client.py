@@ -16,7 +16,9 @@ class GridClashUDPClient:
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.client_socket.settimeout(0.01) # Non-blocking
         
-        self.client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 65536)
+        # --- FIX 1: INCREASED BUFFER ---
+        # 1MB buffer to prevent OS dropping packets during CPU spikes
+        self.client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
         
         self.last_snapshot_id = -1
         self.server_address = (server_host, server_port)
@@ -45,22 +47,19 @@ class GridClashUDPClient:
             'dark_gray': (50, 50, 50),
             'grid_line': (80, 80, 80), 
             'unclaimed': (200, 200, 200),
-            # Player colors with underscores (as they come from server)
             'player_1': (255, 50, 50),      # Red
             'player_2': (50, 50, 255),      # Blue
             'player_3': (50, 255, 50),      # Green
             'player_4': (255, 255, 50),     # Yellow
-            # Backward compatibility (without underscores)
-            'player1': (255, 50, 50),
-            'player2': (50, 50, 255),
-            'player3': (50, 255, 50),
-            'player4': (255, 255, 50),    
         }
         
         self.my_predicted_pos = [0, 0]
         self.target_positions = {}
         self.render_positions = {} 
-        self.smoothing_factor = 0.2 
+        
+        # --- FIX 2: TUNED SMOOTHING ---
+        # Increased to 0.6 to reduce "Perceived Position Error" (less lag behind server)
+        self.smoothing_factor = 0.6 
         self.last_action_time = 0
         self.action_delay = 0.15 
         
@@ -458,40 +457,23 @@ class GridClashUDPClient:
             txt = self.font.render("Game in progress", True, (0, 255, 0))
             self.screen.blit(txt, (self.grid_size * self.cell_size + 20, 180))
 
-    def debug_colors(self):
-        """Debug method to check color assignments"""
-        print("\n=== DEBUG: Color Assignments ===")
-        print(f"Player ID: {self.player_id}")
-        print(f"Available colors in COLORS dict:")
-        for key, color in self.COLORS.items():
-            if 'player' in key:
-                print(f"  {key}: {color}")
-        
-        print(f"\nCurrent grid cells:")
-        if 'grid' in self.game_data:
-            count = 0
-            for cell_id, cell_data in self.game_data['grid'].items():
-                owner = cell_data.get('owner_id', 'none')
-                print(f"  Cell {cell_id}: owned by {owner}")
-                count += 1
-                if count > 10:  # Limit output
-                    print(f"  ... and {len(self.game_data['grid']) - count} more cells")
-                    break
-
     def run(self):
-        # Always init pygame for event loop/timers, even if headless
+        # --- FIX 3: HEADLESS OPTIMIZATION ---
+        # Disable video driver in headless mode to save massive CPU usage
+        self.headless = "--headless" in sys.argv
+        if self.headless:
+            os.environ["SDL_VIDEODRIVER"] = "dummy"
+
         pygame.init()
         
         if not self.connect_to_server(): 
             print("❌ Connection failed!")
             return
         
-        self.headless = "--headless" in sys.argv
         if not self.headless:
-            if not self.initialize_graphics():
-                return
+            if not self.initialize_graphics(): return
         else:
-            print(f"[{self.player_id}] Running in HEADLESS BOT mode")
+            print(f"[{self.player_id}] Running in HEADLESS BOT mode (Optimized)")
         
         self.running = True
         self.start_network_thread()
@@ -520,6 +502,7 @@ class GridClashUDPClient:
                     else: to_delete.append(seq)
             for s in to_delete: del self.pending_requests[s]
             
+            # Only draw if screen exists and not headless
             if not self.headless and self.screen:
                 self.screen.fill(self.COLORS['black'])
                 self.draw_grid()
@@ -527,8 +510,10 @@ class GridClashUDPClient:
                 pygame.display.flip()
                 clock.tick(60)
             else:
-                # Save CPU in headless mode
-                time.sleep(0.1)
+                # --- FIX 4: CPU SAFE SLEEP ---
+                # 0.06s (~16Hz) is the sweet spot. 
+                # Faster than 10Hz (fixes pos error), slower than 60Hz (saves CPU)
+                time.sleep(0.06)
                 
         if self.csv_logger:
             self.csv_logger.close()
