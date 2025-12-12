@@ -26,8 +26,13 @@ class GridClashUDPClient:
                     return iface_ip
             return default_host
         
+        # Store the detected IP
         self.server_host = detect_server_ip(server_host)
         self.server_port = server_port
+        
+        # FIXED: Use self.server_host, not the parameter server_host
+        self.server_address = (self.server_host, self.server_port)
+        
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.client_socket.settimeout(0.01) # Non-blocking
         
@@ -35,7 +40,6 @@ class GridClashUDPClient:
         self.client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)  # 1MB
         
         self.last_snapshot_id = -1
-        self.server_address = (server_host, server_port)
         self.sequence_num = 0
         self.player_id = f"unknown_{random.randint(1000,9999)}" 
         
@@ -92,9 +96,11 @@ class GridClashUDPClient:
 
         # --- STRICT PDF COMPLIANCE: Metrics Logging ---
         pid = os.getpid()
+        # FIXED: Match the number of columns with what we're logging
         self.csv_logger = GameLogger(f"client_log_{pid}.csv", 
             ["client_id", "snapshot_id", "seq_num", "server_timestamp_ms", 
-             "recv_time_ms", "latency_ms", "render_x", "render_y"])
+             "recv_time_ms", "latency_ms", "render_x", "render_y",
+             "is_critical", "cell_id", "success"])
 
     def connect_to_server(self):
         try:
@@ -125,6 +131,7 @@ class GridClashUDPClient:
         t.start()
 
     def receive_data(self):
+        packet_count = 0
         while self.running:
             try:
                 data, addr = self.client_socket.recvfrom(65536)
@@ -132,10 +139,19 @@ class GridClashUDPClient:
                 message = GridClashBinaryProtocol.decode_message(data)
                 
                 if message:
+                    packet_count += 1
+                    # Debug: print every 20th packet
+                    if packet_count % 20 == 0:
+                        msg_type_name = GridClashBinaryProtocol.get_message_type_name(message['header']['msg_type'])
+                        print(f"[CLIENT {self.player_id}] Received packet {packet_count}, type: {msg_type_name}")
+                    
                     self.handle_server_message(message, recv_time)
                     
-            except socket.timeout: continue
-            except: continue
+            except socket.timeout: 
+                continue
+            except Exception as e:
+                print(f"[CLIENT {self.player_id}] Receive error: {e}")
+                continue
 
     def handle_server_message(self, message, recv_time):
         header = message['header']
@@ -214,20 +230,23 @@ class GridClashUDPClient:
                         f"success={success}, latency={latency_ms}ms")
                     break
         
-        # Log to CSV with enhanced metrics
-        self.csv_logger.log([
-            log_id,
-            header['snapshot_id'],
-            header['seq_num'],
-            server_elapsed_ms,  # Changed from server_ts_ms
-            client_elapsed_ms,  # Changed from recv_time_ms
-            latency_ms,
-            p1_render[0], 
-            p1_render[1],
-            int(is_critical_event),  # 1 if critical event, 0 otherwise
-            payload.get('cell_id', 'none') if is_critical_event else 'none',
-            int(payload.get('success', 0)) if is_critical_event else 0
-        ])
+        # Log to CSV with enhanced metrics - FIXED: Now matches 11 columns
+        try:
+            self.csv_logger.log([
+                log_id,
+                header['snapshot_id'],
+                header['seq_num'],
+                server_elapsed_ms,
+                client_elapsed_ms,
+                latency_ms,
+                p1_render[0], 
+                p1_render[1],
+                1 if is_critical_event else 0,  # is_critical
+                payload.get('cell_id', 'none') if is_critical_event else 'none',
+                1 if (is_critical_event and payload.get('success', False)) else 0  # success
+            ])
+        except Exception as e:
+            print(f"[ERROR] Failed to log CSV: {e}")
         
         # Also log to special critical events CSV if needed
         if is_critical_event:
@@ -251,7 +270,7 @@ class GridClashUDPClient:
                 request_time if request_time else time.perf_counter() - (latency_ms/1000),
                 time.perf_counter(),
                 latency_ms,
-                int(payload.get('success', False)),
+                1 if payload.get('success', False) else 0,
                 header['snapshot_id'],
                 header['seq_num']
             ])
@@ -413,22 +432,21 @@ class GridClashUDPClient:
             # Server heartbeat - just acknowledge
             pass
 
-def _apply_redundancy(self, payload, last_received_payload):
-    """Apply redundancy data from previous packet if current is incomplete"""
-    return GridClashBinaryProtocol.use_redundancy_if_needed(payload, last_received_payload)
+    def _apply_redundancy(self, payload, last_received_payload):
+        """Apply redundancy data from previous packet if current is incomplete"""
+        return GridClashBinaryProtocol.use_redundancy_if_needed(payload, last_received_payload)
 
-def calculate_jitter(self):
-    """Calculate jitter (variation in inter-arrival times)"""
-    if len(self.update_intervals) < 2:
-        return 0.0
-    
-    # Calculate standard deviation of update intervals
-    mean = sum(self.update_intervals) / len(self.update_intervals)
-    variance = sum((x - mean) ** 2 for x in self.update_intervals) / len(self.update_intervals)
-    return variance ** 0.5
+    def calculate_jitter(self):
+        """Calculate jitter (variation in inter-arrival times)"""
+        if len(self.update_intervals) < 2:
+            return 0.0
+        
+        # Calculate standard deviation of update intervals
+        mean = sum(self.update_intervals) / len(self.update_intervals)
+        variance = sum((x - mean) ** 2 for x in self.update_intervals) / len(self.update_intervals)
+        return variance ** 0.5
 
     def update_interpolation(self):
-        
         current_time = time.time()
         
         for pid in self.target_positions:
@@ -554,19 +572,37 @@ def calculate_jitter(self):
         self.pending_requests[self.sequence_num] = {
             'data': msg, 'time': time.time(), 'retries': 0
         }
-        try: self.client_socket.sendto(msg, self.server_address)
-        except: pass
+        
+        # Track acquisition attempt
+        self.acquisition_attempts.append({
+            'cell_id': cell_id,
+            'request_time': time.time(),
+            'seq_num': self.sequence_num,
+            'response_received': False,
+            'response_time': None,
+            'success': False,
+            'latency_ms': None
+        })
+        
+        try: 
+            self.client_socket.sendto(msg, self.server_address)
+        except Exception as e:
+            print(f"[ERROR] Failed to send acquire request: {e}")
 
     def send_player_move(self, player_id, position):
         self.sequence_num += 1
         msg = GridClashBinaryProtocol.encode_player_move(player_id, position, self.sequence_num)
-        try: self.client_socket.sendto(msg, self.server_address)
-        except: pass
+        try: 
+            self.client_socket.sendto(msg, self.server_address)
+        except Exception as e:
+            print(f"[ERROR] Failed to send player move: {e}")
 
     def send_heartbeat(self):
         msg = GridClashBinaryProtocol.encode_heartbeat()
-        try: self.client_socket.sendto(msg, self.server_address)
-        except: pass
+        try: 
+            self.client_socket.sendto(msg, self.server_address)
+        except Exception as e:
+            print(f"[ERROR] Failed to send heartbeat: {e}")
 
     def initialize_graphics(self):
         try:
@@ -674,7 +710,9 @@ def calculate_jitter(self):
         # Always init pygame for event loop/timers, even if headless
         pygame.init()
         
-        if not self.connect_to_server(): return
+        if not self.connect_to_server(): 
+            print("❌ Connection failed!")
+            return
         
         self.headless = "--headless" in sys.argv
         if not self.headless:
@@ -706,8 +744,11 @@ def calculate_jitter(self):
                             req['time'] = current_time
                             req['retries'] += 1
                         except: pass
-                    else: to_delete.append(seq)
-            for s in to_delete: del self.pending_requests[s]
+                    else: 
+                        to_delete.append(seq)
+            
+            for s in to_delete: 
+                del self.pending_requests[s]
             
             if not self.headless and self.screen:
                 self.screen.fill(self.COLORS['black'])
