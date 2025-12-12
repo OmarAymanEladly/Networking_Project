@@ -168,30 +168,47 @@ def run_scenario(name, loss, delay, jitter):
     # Start Wireshark capture
     pcap_file = start_wireshark_capture(name, interface="lo")
     
-    # Start Server - CRITICAL: Use unbuffered output for real-time logs
+    # Start Server - Use unbuffered output for real-time logs
     print(f"\n[1/3] Starting Server...")
     server_proc = subprocess.Popen(
         [PYTHON_CMD, "-u", SERVER_SCRIPT],
         stdout=open(f"{results_dir}/server.log", "w"),
         stderr=subprocess.STDOUT,
-        bufsize=0  # No buffering
+        bufsize=0
     )
     
-    # Wait for server to start
+    # Wait for server to start and verify it's running
     print("   Waiting for server to initialize...")
-    time.sleep(5)  # Increased wait time
+    time.sleep(5)
     
-    # Check if server is running
-    try:
-        import socket
-        test_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        test_sock.settimeout(1)
-        test_sock.sendto(b"TEST", ('127.0.0.1', 5555))
-        response, _ = test_sock.recvfrom(1024)
-        test_sock.close()
-        print("   ✅ Server is responding")
-    except:
-        print("   ⚠️  Server may not be ready, but continuing...")
+    # Check if server process is running
+    if server_proc.poll() is None:  # None means process is still running
+        print(f"   ✅ Server process is running (PID: {server_proc.pid})")
+        
+        # Check if server is listening on port 5555
+        try:
+            check_cmd = "sudo netstat -tulpn | grep :5555 || true"
+            result = subprocess.run(check_cmd, shell=True, capture_output=True, text=True)
+            if ":5555" in result.stdout:
+                print("   ✅ Server is listening on port 5555")
+            else:
+                print("   ⚠️  Server not listening on port 5555")
+        except Exception as e:
+            print(f"   ⚠️  Could not check port: {e}")
+    else:
+        print("   ❌ Server process terminated!")
+        # Try to get error output
+        try:
+            stdout, stderr = server_proc.communicate(timeout=2)
+            if stderr:
+                error_msg = stderr.decode()[:200]
+                print(f"   Server error: {error_msg}")
+            elif stdout:
+                error_msg = stdout.decode()[:200]
+                print(f"   Server output: {error_msg}")
+        except:
+            pass
+        return None
     
     # Start 4 Clients
     print(f"\n[2/3] Starting 4 Clients...")
@@ -206,22 +223,53 @@ def run_scenario(name, loss, delay, jitter):
             [PYTHON_CMD, "-u", CLIENT_SCRIPT, "127.0.0.1", "--headless"],
             stdout=open(client_log, "w"),
             stderr=subprocess.STDOUT,
-            bufsize=0  # No buffering
+            bufsize=0
         )
         clients.append(client_proc)
         
         # Give time for client to connect
-        time.sleep(2)  # Increased wait time between clients
-        print(f"   Client {client_id} started")
+        time.sleep(2)
+        print(f"   Client {client_id} started (PID: {client_proc.pid})")
         
-        # Check if client connected successfully
+        # Check if client log file is being created
+        if os.path.exists(client_log):
+            print(f"   ✅ Client {client_id} log file created")
+        else:
+            print(f"   ⚠️  Client {client_id} log file not found")
+    
+    # Wait a bit for clients to connect
+    print("\n   Waiting for clients to connect...")
+    time.sleep(3)
+    
+    # Check client connection status
+    connected_clients = 0
+    for i in range(4):
+        client_id = i + 1
+        client_log = f"{results_dir}/client_{client_id}.log"
+        
         if os.path.exists(client_log) and os.path.getsize(client_log) > 0:
-            with open(client_log, 'r') as f:
-                content = f.read()
-                if "Connected!" in content:
-                    print(f"   ✅ Client {client_id} connected successfully")
-                elif "ERROR" in content or "failed" in content.lower():
-                    print(f"   ❌ Client {client_id} failed to connect")
+            try:
+                with open(client_log, 'r') as f:
+                    content = f.read()
+                    if "Connected!" in content or "[OK]" in content:
+                        print(f"   ✅ Client {client_id} connected successfully")
+                        connected_clients += 1
+                    elif "ERROR" in content or "failed" in content.lower():
+                        print(f"   ❌ Client {client_id} failed to connect")
+                    else:
+                        # Check for any meaningful output
+                        lines = content.strip().split('\n')
+                        if len(lines) > 3:
+                            print(f"   ⚠️  Client {client_id} has output but no clear connection status")
+                        else:
+                            print(f"   ⚠️  Client {client_id} has minimal output")
+            except Exception as e:
+                print(f"   ❌ Error reading client {client_id} log: {e}")
+        else:
+            print(f"   ⚠️  Client {client_id} log file empty or missing")
+    
+    if connected_clients == 0:
+        print("\n   ⚠️  No clients connected successfully! Check server logs.")
     
     # Run test
     print(f"\n[3/3] Running for {DURATION} seconds...")
@@ -290,6 +338,16 @@ def run_scenario(name, loss, delay, jitter):
         except:
             pass
     
+    # Also collect any other log files
+    for f in os.listdir("."):
+        if f.startswith("client_data_") and f.endswith(".csv"):
+            try:
+                shutil.move(f, os.path.join(results_dir, f))
+                csv_count += 1
+                print(f"   📄 {f}")
+            except:
+                pass
+    
     print(f"\n✅ {name} completed!")
     print(f"   Results in: {results_dir}")
     print(f"   CSV files: {csv_count}")
@@ -333,7 +391,12 @@ def main():
             print(f"\n{'#'*60}")
             print(f"RUNNING SCENARIO: {params[0]}")
             print(f"{'#'*60}")
-            run_scenario(*params)
+            result = run_scenario(*params)
+            
+            if result:
+                print(f"   Scenario {params[0]} completed successfully")
+            else:
+                print(f"   ⚠️  Scenario {params[0]} had issues")
             
             # Cleanup between tests
             if key != "delay_jitter":
