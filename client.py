@@ -19,6 +19,7 @@ class GridClashUDPClient:
         self.client_socket.settimeout(0.01)  # Non-blocking
 
         self.render_positions = {}
+        self.grid_size = 20 
 
         self.render_positions = {
         'player_1': [0, 0],

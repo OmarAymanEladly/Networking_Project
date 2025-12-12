@@ -1,0 +1,332 @@
+{
+  "baseline": {
+    "test_name": "baseline",
+    "client_logs": {
+      "1": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      },
+      "2": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      },
+      "3": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      },
+      "4": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      }
+    },
+    "server_log": {
+      "client_connections": 0,
+      "game_events": 0,
+      "broadcast_count": 0,
+      "error_count": 0,
+      "cpu_mentions": 0,
+      "total_lines": 0
+    },
+    "metadata": {
+      "test_name": "Baseline (no impairment)",
+      "timestamp": 1765517108.6894813,
+      "netem_command": null,
+      "duration": 60,
+      "clients": 4,
+      "interface": "enp0s3",
+      "server_port": 5555
+    }
+  },
+  "delay_100ms": {
+    "test_name": "delay_100ms",
+    "client_logs": {
+      "1": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      },
+      "2": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      },
+      "3": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      },
+      "4": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      }
+    },
+    "server_log": {
+      "client_connections": 0,
+      "game_events": 0,
+      "broadcast_count": 0,
+      "error_count": 0,
+      "cpu_mentions": 0,
+      "total_lines": 0
+    },
+    "metadata": {
+      "test_name": "Delay 100ms (WAN delay)",
+      "timestamp": 1765517406.401881,
+      "netem_command": "sudo tc qdisc add dev enp0s3 root netem delay 100ms",
+      "duration": 90,
+      "clients": 4,
+      "interface": "enp0s3",
+      "server_port": 5555
+    }
+  },
+  "delay_jitter": {
+    "test_name": "delay_jitter",
+    "client_logs": {
+      "1": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      },
+      "2": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      },
+      "3": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      },
+      "4": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      }
+    },
+    "server_log": {
+      "client_connections": 0,
+      "game_events": 0,
+      "broadcast_count": 0,
+      "error_count": 0,
+      "cpu_mentions": 0,
+      "total_lines": 0
+    },
+    "metadata": {
+      "test_name": "Delay + Jitter (100ms \u00b110ms)",
+      "timestamp": 1765517525.4357288,
+      "netem_command": "sudo tc qdisc add dev enp0s3 root netem delay 100ms 10ms",
+      "duration": 90,
+      "clients": 4,
+      "interface": "enp0s3",
+      "server_port": 5555
+    }
+  },
+  "loss_2pct": {
+    "test_name": "loss_2pct",
+    "client_logs": {
+      "1": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      },
+      "2": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      },
+      "3": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      },
+      "4": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      }
+    },
+    "server_log": {
+      "client_connections": 0,
+      "game_events": 0,
+      "broadcast_count": 0,
+      "error_count": 0,
+      "cpu_mentions": 0,
+      "total_lines": 0
+    },
+    "metadata": {
+      "test_name": "Loss 2% (LAN-like)",
+      "timestamp": 1765517203.1257277,
+      "netem_command": "sudo tc qdisc add dev enp0s3 root netem loss 2%",
+      "duration": 60,
+      "clients": 4,
+      "interface": "enp0s3",
+      "server_port": 5555
+    }
+  },
+  "loss_5pct": {
+    "test_name": "loss_5pct",
+    "client_logs": {
+      "1": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      },
+      "2": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      },
+      "3": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      },
+      "4": {
+        "latency_samples": [],
+        "update_rate_samples": [],
+        "packet_loss_samples": [],
+        "position_samples": [],
+        "sequence_numbers": [],
+        "timestamps": [],
+        "error_count": 0,
+        "total_lines": 11,
+        "metrics_lines": 0
+      }
+    },
+    "server_log": {
+      "client_connections": 0,
+      "game_events": 0,
+      "broadcast_count": 0,
+      "error_count": 0,
+      "cpu_mentions": 0,
+      "total_lines": 0
+    },
+    "metadata": {
+      "test_name": "Loss 5% (WAN-like)",
+      "timestamp": 1765517288.1711922,
+      "netem_command": "sudo tc qdisc add dev enp0s3 root netem loss 5%",
+      "duration": 60,
+      "clients": 4,
+      "interface": "enp0s3",
+      "server_port": 5555
+    }
+  }
+}
