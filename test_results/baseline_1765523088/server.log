@@ -1,0 +1,61 @@
+>>> Grid Clash UDP Server started on 0.0.0.0:5555
+>>> Update rate: 20 Hz
+[BROADCAST] Starting fixed 20Hz broadcast loop
+
+>> SERVER METRICS [Uptime: 10.0s]
+   Clients: 0
+   Packets Sent: 0
+   Packets Received: 0
+   Bytes Sent: 0
+   Bytes Received: 0
+>> New connection: ('127.0.0.1', 40477) assigned to player_1
+Server loop error: GridClashBinaryProtocol.encode_welcome() takes 2 positional arguments but 3 were given
+Exception in thread Thread-2 (fixed_broadcast_loop):
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/threading.py", line 1073, in _bootstrap_inner
+    self.run()
+  File "/usr/lib/python3.12/threading.py", line 1010, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/vboxuser/Networking_Project/server_optimized.py", line 233, in fixed_broadcast_loop
+    snapshot_data = GridClashBinaryProtocol.encode_game_state(
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: GridClashBinaryProtocol.encode_game_state() takes from 3 to 4 positional arguments but 5 were given
+>> New connection: ('127.0.0.1', 58400) assigned to player_2
+Server loop error: GridClashBinaryProtocol.encode_welcome() takes 2 positional arguments but 3 were given
+>> New connection: ('127.0.0.1', 57517) assigned to player_3
+Server loop error: GridClashBinaryProtocol.encode_welcome() takes 2 positional arguments but 3 were given
+>> New connection: ('127.0.0.1', 52180) assigned to player_4
+Server loop error: GridClashBinaryProtocol.encode_welcome() takes 2 positional arguments but 3 were given
+
+>> SERVER METRICS [Uptime: 20.0s]
+   Clients: 4
+   Packets Sent: 0
+   Packets Received: 4
+   Bytes Sent: 0
+   Bytes Received: 28
+
+>> SERVER METRICS [Uptime: 30.0s]
+   Clients: 4
+   Packets Sent: 0
+   Packets Received: 4
+   Bytes Sent: 0
+   Bytes Received: 28
+
+>> SERVER METRICS [Uptime: 40.0s]
+   Clients: 4
+   Packets Sent: 0
+   Packets Received: 4
+   Bytes Sent: 0
+   Bytes Received: 28
+
+>> SERVER METRICS [Uptime: 50.0s]
+   Clients: 4
+   Packets Sent: 0
+   Packets Received: 4
+   Bytes Sent: 0
+   Bytes Received: 28
+STOP Shutting down UDP server...
+[OK] UDP Server shutdown complete
+Traceback (most recent call last):
+  File "/home/vboxuser/Networking_Project/server_optimized.py", line 408, in <module>
+    
