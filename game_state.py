@@ -22,8 +22,8 @@ class GameState:
         # Initialize quick lookup for positions
         self.player_positions = {pid: p['position'] for pid, p in self.players.items()}
 
-        # Game state - CRITICAL FIX: Game starts immediately
-        self.game_started = True  # Changed from False to True
+        # Game state
+        self.game_started = True
         self.game_over = False
         self.winner_id = None
 
@@ -127,15 +127,11 @@ class GameState:
         Get complete game state for broadcasting.
         reset_dirty: If True, clears the dirty_cells list after reading.
         """
-        # IMPORTANT: Ensure we include all necessary data
         data = {
-            'grid': self.grid.copy(),  # Send full grid copy
-            'grid_updates': self.dirty_cells.copy(), # Send only changed cells for delta
-            'players': {pid: {
-                'score': p['score'],
-                'position': p['position'].copy()
-            } for pid, p in self.players.items()},
-            'player_positions': self.player_positions.copy(),
+            'grid': self.grid,
+            'grid_updates': self.dirty_cells.copy(), # Send only changed cells
+            'players': self.players,
+            'player_positions': self.player_positions,
             'game_started': self.game_started,
             'game_over': self.game_over,
             'winner_id': self.winner_id,
