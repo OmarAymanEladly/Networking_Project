@@ -1,7 +1,0 @@
-Test: loss_5pct
-Time: Fri Dec 12 08:47:38 AM UTC 2025
-Duration: 20s
-Network: Loss=5%, Delay=0ms, Jitter=0ms
-Clients Connected: 3/4
-CSV Files: 5
-PCAP File: None

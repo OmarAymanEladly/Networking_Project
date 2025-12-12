@@ -1,7 +1,0 @@
-Test: delay_jitter
-Time: Fri Dec 12 08:50:20 AM UTC 2025
-Duration: 20s
-Network: Loss=0%, Delay=100ms, Jitter=10ms
-Clients Connected: 4/4
-CSV Files: 5
-PCAP File: None

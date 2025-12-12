@@ -1,7 +1,0 @@
-Test: baseline
-Time: Fri Dec 12 08:53:06 AM UTC 2025
-Duration: 30s
-Network: Loss=0%, Delay=0ms, Jitter=0ms
-Clients Connected: 4/4
-CSV Files: 5
-PCAP File: None
