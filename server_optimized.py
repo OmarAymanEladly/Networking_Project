@@ -60,6 +60,8 @@ class GridClashUDPServer:
         }
         
         self.csv_logger = None
+        self.last_log_time = 0
+        self.log_interval = 0.05  # Log every 50ms (20Hz)
 
     def start_server(self):
         """Main server loop"""
@@ -73,9 +75,11 @@ class GridClashUDPServer:
             # CRITICAL: Ensure game is started
             self.game_state.game_started = True
             
-            # Initialize CSV Logger
+            # Initialize CSV Logger - FIXED: Log server-side positions
             self.csv_logger = GameLogger("server_log.csv", 
-                ["timestamp", "cpu_percent", "bytes_sent", "player1_pos_x", "player1_pos_y"])
+                ["timestamp", "cpu_percent", "bytes_sent", "player1_pos_x", "player1_pos_y",
+                 "player2_pos_x", "player2_pos_y", "player3_pos_x", "player3_pos_y", 
+                 "player4_pos_x", "player4_pos_y"])
             
             # Start background threads - USING FIXED BROADCAST LOOP
             threading.Thread(target=self.fixed_broadcast_loop, daemon=True).start()
@@ -250,26 +254,55 @@ class GridClashUDPServer:
                     self.broadcast_game_over()
                     self.game_over_sent = True
             
-            # Log metrics
-            try:
-                if 'player_1' in self.game_state.players:
-                    p1_pos = self.game_state.players['player_1']['position']
-                    self.csv_logger.log([
-                        time.time(), 
-                        psutil.cpu_percent(), 
-                        self.metrics['bytes_sent'],
-                        p1_pos[0], p1_pos[1]
-                    ])
-                else:
-                    self.csv_logger.log([
-                        time.time(), psutil.cpu_percent(), self.metrics['bytes_sent'], 0, 0
-                    ])
-            except: pass 
+            # FIXED: Log metrics REGULARLY (every broadcast cycle)
+            current_time = time.time()
+            if current_time - self.last_log_time >= self.log_interval:
+                self.log_server_metrics()
+                self.last_log_time = current_time
             
             # Maintain precise 20Hz timing
             elapsed = time.time() - start_time
             sleep_time = max(0.001, target_interval - elapsed)
             time.sleep(sleep_time)
+    
+    def log_server_metrics(self):
+        """Log server metrics to CSV - FIXED to always log player positions"""
+        try:
+            # Get ALL player positions (even if no clients connected)
+            player_positions = []
+            
+            # Default positions for all 4 players
+            default_positions = {
+                'player_1': [0, 0],
+                'player_2': [self.game_state.grid_size-1, self.game_state.grid_size-1],
+                'player_3': [0, self.game_state.grid_size-1],
+                'player_4': [self.game_state.grid_size-1, 0]
+            }
+            
+            # Use actual positions if available, otherwise defaults
+            for player_id in ['player_1', 'player_2', 'player_3', 'player_4']:
+                if player_id in self.game_state.players:
+                    pos = self.game_state.players[player_id]['position']
+                    player_positions.extend(pos)  # Add x, y
+                else:
+                    pos = default_positions[player_id]
+                    player_positions.extend(pos)
+            
+            # Create log entry
+            log_entry = [
+                time.time(),  # timestamp
+                psutil.cpu_percent(),  # cpu_percent
+                self.metrics['bytes_sent'],  # bytes_sent
+            ]
+            
+            # Add all player positions
+            log_entry.extend(player_positions)
+            
+            # Log to CSV
+            self.csv_logger.log(log_entry)
+            
+        except Exception as e:
+            print(f"[SERVER] Error logging metrics: {e}")
 
     def broadcast_game_over(self):
         """Broadcast game over message to all clients"""
