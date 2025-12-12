@@ -1,7 +1,7 @@
 import csv
 import time
 import threading
-import os
+
 
 class GameLogger:
     def __init__(self, filename, headers):

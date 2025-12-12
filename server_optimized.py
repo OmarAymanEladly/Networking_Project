@@ -21,7 +21,7 @@ class GridClashUDPServer:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         
-        # Buffer tuning: Increase buffer to handle bursts during tests
+        
         # Critical for handling 4 clients sending data simultaneously
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1024 * 1024)
@@ -35,7 +35,7 @@ class GridClashUDPServer:
         
         self.snapshot_id = 0
         self.sequence_num = 0
-        self.update_rate = 20  # 20 Hz (Send updates every 50ms)
+        self.update_rate = 20  # (Send updates every 50ms)
         
         # Reliability Structures (Phase 2 requirement)
         self.retry_queue = {} 

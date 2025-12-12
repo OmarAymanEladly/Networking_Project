@@ -1,18 +1,10 @@
-Readme file to run the code locally:
-# Grid Clash UDP - Phase 1
+Grid Clash - Phase 2 Submission
 
-## Quick Start
+HOW TO RUN:
+1. Install dependencies: sudo apt install python3-pip tshark; pip3 install pygame pandas matplotlib seaborn scipy
+2. Run tests: sudo ./run_tests.sh
+3. Analyze: python3 analyze_result.py
 
-### Requirements
-- Python 3.7+
-- Pygame library
-
-### Installation
-```bash
-pip install pygame
-
-###start the server in one terminal:
-python server_optimized.py
-
-###start the client in another server:
-python client.py
+NOTES:
+- We use /tmp/ for pcap capture to avoid VirtualBox shared folder permission errors.
+- Headless clients use a dummy video driver to save CPU.

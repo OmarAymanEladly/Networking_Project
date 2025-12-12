@@ -16,8 +16,7 @@ class GridClashUDPClient:
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.client_socket.settimeout(0.01) # Non-blocking
         
-        # --- FIX 1: INCREASED BUFFER ---
-        # 1MB buffer to prevent OS dropping packets during CPU spikes
+        
         self.client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
         
         self.last_snapshot_id = -1
@@ -57,8 +56,7 @@ class GridClashUDPClient:
         self.target_positions = {}
         self.render_positions = {} 
         
-        # --- FIX 2: TUNED SMOOTHING ---
-        # Increased to 0.6 to reduce "Perceived Position Error" (less lag behind server)
+        
         self.smoothing_factor = 0.6 
         self.last_action_time = 0
         self.action_delay = 0.15 
@@ -72,7 +70,7 @@ class GridClashUDPClient:
             'start_time': time.time()
         }
 
-        # --- STRICT PDF COMPLIANCE: Metrics Logging ---
+        # ---  Metrics Logging ---
         pid = os.getpid()
         self.csv_logger = GameLogger(f"client_log_{pid}.csv", 
             ["client_id", "snapshot_id", "seq_num", "server_timestamp_ms", 
@@ -132,7 +130,7 @@ class GridClashUDPClient:
             latency_ms = recv_time_ms - server_ts_ms
             self.metrics['latency_samples'].append(latency_ms)
 
-        # Log to CSV (Strict Phase 2 Format)
+        # Log to CSV file
         p1_render = self.render_positions.get('player_1', [0,0])
         
         # Avoid crashing if we don't have an ID yet
@@ -458,7 +456,6 @@ class GridClashUDPClient:
             self.screen.blit(txt, (self.grid_size * self.cell_size + 20, 180))
 
     def run(self):
-        # --- FIX 3: HEADLESS OPTIMIZATION ---
         # Disable video driver in headless mode to save massive CPU usage
         self.headless = "--headless" in sys.argv
         if self.headless:
@@ -488,7 +485,7 @@ class GridClashUDPClient:
                 self.send_heartbeat()
                 last_hb = time.time()
 
-            # Retry Logic (100ms interval for <200ms delivery req)
+            # Retry Logic for pending requests
             current_time = time.time()
             to_delete = []
             for seq, req in self.pending_requests.items():
@@ -510,9 +507,7 @@ class GridClashUDPClient:
                 pygame.display.flip()
                 clock.tick(60)
             else:
-                # --- FIX 4: CPU SAFE SLEEP ---
-                # 0.06s (~16Hz) is the sweet spot. 
-                # Faster than 10Hz (fixes pos error), slower than 60Hz (saves CPU)
+                
                 time.sleep(0.06)
                 
         if self.csv_logger:
