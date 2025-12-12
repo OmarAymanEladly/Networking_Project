@@ -1,601 +1,713 @@
-# analyze_result.py
-#!/usr/bin/env python3
-"""
-Analyze Grid Clash test results from log files
-Reads actual .log files from test_results directory
-"""
-
-import numpy as np
+import argparse
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
-from pathlib import Path
+import seaborn as sns
+import os
 import json
-import csv
-import re
-from collections import defaultdict
+import glob
+from scipy import stats
+from datetime import datetime
 import warnings
 warnings.filterwarnings('ignore')
 
-class GridClashAnalyzer:
+class ResultsAnalyzer:
     def __init__(self, results_dir="test_results"):
-        self.results_dir = Path(results_dir)
-        self.metrics_summary = {}
+        self.results_dir = results_dir
+        self.scenarios = ["baseline", "loss_2pct", "loss_5pct", "delay_100ms", "delay_jitter"]
         
-        # Color scheme for plots
-        self.colors = {
-            'baseline': '#2E86AB',
-            'loss_2pct': '#A23B72',
-            'loss_5pct': '#F18F01',
-            'delay_100ms': '#C73E1D',
-            'delay_jitter': '#6A994E'
+        # Set plotting style
+        plt.style.use('seaborn-v0_8-darkgrid')
+        sns.set_palette("husl")
+        
+        # Create analysis directory
+        os.makedirs("analysis_plots", exist_ok=True)
+        
+    def find_csv_files(self, scenario_name):
+        """Find all CSV files for a scenario across all runs"""
+        csv_files = []
+        
+        # Pattern to match: test_results/scenario_name/run_*/client_log_*.csv
+        client_pattern = os.path.join(self.results_dir, scenario_name, "run_*", "client_log_*.csv")
+        server_pattern = os.path.join(self.results_dir, scenario_name, "run_*", "server_log.csv")
+        
+        client_files = glob.glob(client_pattern)
+        server_files = glob.glob(server_pattern)
+        
+        return {
+            'client_files': client_files,
+            'server_files': server_files
         }
     
-    def parse_log_file(self, log_file):
-        """Parse a log file to extract metrics"""
-        metrics = defaultdict(list)
+    def load_scenario_data(self, scenario_name):
+        """Load all CSV files for a given scenario"""
+        print(f"  Loading data for {scenario_name}...")
         
-        try:
-            with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
-                for line in f:
-                    line = line.strip()
-                    
-                    # Skip empty lines
-                    if not line:
-                        continue
-                    
-                    # Extract latency (multiple patterns)
-                    if 'latency' in line.lower() or 'ping' in line.lower() or 'rtt' in line.lower():
-                        # Pattern 1: "Latency: 12.3ms"
-                        match = re.search(r'[Ll]atency[\s:]+([\d.]+)\s*ms', line)
-                        if match:
-                            try:
-                                metrics['latency'].append(float(match.group(1)))
-                            except:
-                                pass
-                        
-                        # Pattern 2: "ping: 12.3ms"
-                        match = re.search(r'[Pp]ing[\s:]+([\d.]+)\s*ms', line)
-                        if match:
-                            try:
-                                metrics['latency'].append(float(match.group(1)))
-                            except:
-                                pass
-                        
-                        # Pattern 3: "12.3ms latency"
-                        match = re.search(r'([\d.]+)\s*ms.*[Ll]atency', line)
-                        if match:
-                            try:
-                                metrics['latency'].append(float(match.group(1)))
-                            except:
-                                pass
-                    
-                    # Extract update rate
-                    if 'update' in line.lower() and 'hz' in line.lower():
-                        match = re.search(r'[Uu]pdate[\s:]+([\d.]+)\s*Hz', line)
-                        if match:
-                            try:
-                                metrics['update_rate'].append(float(match.group(1)))
-                            except:
-                                pass
-                    
-                    # Extract packet loss
-                    if 'lost' in line.lower() and 'packet' in line.lower():
-                        # "Detected 3 lost packets"
-                        match = re.search(r'[Dd]etected\s+(\d+)\s+lost packets', line)
-                        if match:
-                            try:
-                                metrics['lost_packets'].append(int(match.group(1)))
-                            except:
-                                pass
-                        
-                        # "3 lost packets"
-                        match = re.search(r'(\d+)\s+lost packets', line)
-                        if match:
-                            try:
-                                metrics['lost_packets'].append(int(match.group(1)))
-                            except:
-                                pass
-                    
-                    # Extract sequence numbers for gap analysis
-                    if 'snapshot' in line.lower():
-                        match = re.search(r'[Ss]napshot[\s:_]+(\d+)', line)
-                        if match:
-                            try:
-                                metrics['snapshot_ids'].append(int(match.group(1)))
-                            except:
-                                pass
-                    
-                    # Extract position data
-                    if 'position' in line.lower() or 'pos:' in line.lower():
-                        # Pattern: "position: [10, 20]" or "pos: [10, 20]"
-                        match = re.search(r'[Pp]os(?:ition)?[\s:]*\[([\d.]+)[,\s]+([\d.]+)\]', line)
-                        if match:
-                            try:
-                                x = float(match.group(1))
-                                y = float(match.group(2))
-                                metrics['positions'].append((x, y))
-                            except:
-                                pass
+        data = {
+            'client_logs': [],
+            'server_logs': [],
+            'metadata': [],
+            'run_dirs': []
+        }
+        
+        # Find all run directories for this scenario
+        scenario_path = os.path.join(self.results_dir, scenario_name)
+        if not os.path.exists(scenario_path):
+            print(f"  Warning: Scenario directory not found: {scenario_path}")
+            return data
+        
+        # Get all run directories
+        run_dirs = glob.glob(os.path.join(scenario_path, "run_*"))
+        if not run_dirs:
+            print(f"  Warning: No run directories found in {scenario_path}")
+            print(f"  Looking for pattern: {os.path.join(scenario_path, 'run_*')}")
+            return data
+        
+        print(f"  Found {len(run_dirs)} run directories")
+        
+        for run_dir in sorted(run_dirs):
+            print(f"    Processing: {os.path.basename(run_dir)}")
+            data['run_dirs'].append(run_dir)
             
+            # Load metadata if exists
+            metadata_file = os.path.join(run_dir, "test_metadata.json")
+            if os.path.exists(metadata_file):
+                try:
+                    with open(metadata_file, 'r') as f:
+                        metadata = json.load(f)
+                        metadata['run_dir'] = run_dir
+                        data['metadata'].append(metadata)
+                except Exception as e:
+                    print(f"    Warning: Could not read metadata: {e}")
+            
+            # Load client CSV files
+            client_pattern = os.path.join(run_dir, "client_log_*.csv")
+            client_files = glob.glob(client_pattern)
+            
+            for csv_file in client_files:
+                try:
+                    df = pd.read_csv(csv_file)
+                    df['scenario'] = scenario_name
+                    df['run_dir'] = run_dir
+                    df['run_name'] = os.path.basename(run_dir)
+                    data['client_logs'].append(df)
+                    print(f"      Loaded client data: {os.path.basename(csv_file)} ({len(df)} rows)")
+                except Exception as e:
+                    print(f"    Warning: Could not read {csv_file}: {e}")
+            
+            # Load server CSV files
+            server_file = os.path.join(run_dir, "server_log.csv")
+            if os.path.exists(server_file):
+                try:
+                    df = pd.read_csv(server_file)
+                    df['scenario'] = scenario_name
+                    df['run_dir'] = run_dir
+                    df['run_name'] = os.path.basename(run_dir)
+                    data['server_logs'].append(df)
+                    print(f"      Loaded server data: server_log.csv ({len(df)} rows)")
+                except Exception as e:
+                    print(f"    Warning: Could not read {server_file}: {e}")
+            else:
+                # Try alternative names
+                alt_pattern = os.path.join(run_dir, "*server*.csv")
+                alt_files = glob.glob(alt_pattern)
+                for alt_file in alt_files:
+                    try:
+                        df = pd.read_csv(alt_file)
+                        df['scenario'] = scenario_name
+                        df['run_dir'] = run_dir
+                        data['server_logs'].append(df)
+                        print(f"      Loaded server data (alt): {os.path.basename(alt_file)}")
+                        break
+                    except:
+                        pass
+        
+        print(f"  Total client logs: {len(data['client_logs'])}")
+        print(f"  Total server logs: {len(data['server_logs'])}")
+        
+        return data
+    
+    def calculate_metrics(self, scenario_name, data):
+        """Calculate all metrics required by PDF for a scenario"""
+        print(f"  Calculating metrics for {scenario_name}...")
+        
+        metrics = {
+            'scenario': scenario_name,
+            'runs_analyzed': len(data['run_dirs'])
+        }
+        
+        if not data['client_logs']:
+            print(f"  Warning: No client data for {scenario_name}")
+            return metrics
+        
+        # Combine all client logs for this scenario
+        try:
+            all_client_data = pd.concat(data['client_logs'], ignore_index=True)
+            print(f"    Combined client data: {len(all_client_data)} rows")
         except Exception as e:
-            print(f"Error parsing {log_file.name}: {e}")
+            print(f"    Error combining client data: {e}")
+            return metrics
+        
+        # Basic metrics
+        metrics['total_packets'] = len(all_client_data)
+        metrics['unique_clients'] = all_client_data['client_id'].nunique() if 'client_id' in all_client_data.columns else 0
+        
+        # Check column names (debug)
+        print(f"    Available columns: {list(all_client_data.columns)}")
+        
+        # Latency metrics (PDF requires mean, median, 95th percentile)
+        latency_col = None
+        for col in ['latency_ms', 'latency', 'latency_ms']:
+            if col in all_client_data.columns:
+                latency_col = col
+                break
+        
+        if latency_col:
+            latency_data = all_client_data[latency_col].dropna()
+            if len(latency_data) > 0:
+                metrics['latency_mean'] = float(latency_data.mean())
+                metrics['latency_median'] = float(latency_data.median())
+                metrics['latency_95th'] = float(np.percentile(latency_data, 95))
+                metrics['latency_std'] = float(latency_data.std())
+                metrics['latency_min'] = float(latency_data.min())
+                metrics['latency_max'] = float(latency_data.max())
+                metrics['latency_samples'] = int(len(latency_data))
+                print(f"    Latency: {metrics['latency_mean']:.1f}ms mean, {metrics['latency_median']:.1f}ms median")
+            else:
+                print(f"    Warning: No latency data in column {latency_col}")
+        else:
+            print(f"    Warning: No latency column found. Available: {list(all_client_data.columns)}")
+        
+        # Jitter calculation
+        if 'recv_time_ms' in all_client_data.columns:
+            jitters = []
+            for client_id in all_client_data['client_id'].unique():
+                client_data = all_client_data[all_client_data['client_id'] == client_id]
+                if len(client_data) > 10:  # Need enough samples
+                    arrival_times = client_data['recv_time_ms'].sort_values().values
+                    inter_arrival = np.diff(arrival_times)
+                    if len(inter_arrival) > 0:
+                        jitter = np.std(inter_arrival)
+                        jitters.append(jitter)
+            
+            if jitters:
+                metrics['jitter_mean'] = float(np.mean(jitters))
+                metrics['jitter_median'] = float(np.median(jitters))
+                metrics['jitter_95th'] = float(np.percentile(jitters, 95))
+                metrics['jitter_samples'] = len(jitters)
+        
+        # Sequence number analysis
+        seq_col = None
+        for col in ['seq_num', 'seq', 'sequence', 'snapshot_id']:
+            if col in all_client_data.columns:
+                seq_col = col
+                break
+        
+        if seq_col:
+            seq_gaps_total = 0
+            total_packets = 0
+            
+            for client_id in all_client_data['client_id'].unique():
+                client_data = all_client_data[all_client_data['client_id'] == client_id]
+                if len(client_data) > 1:
+                    seq_nums = client_data[seq_col].sort_values().values
+                    if len(seq_nums) > 1:
+                        gaps = np.diff(seq_nums) - 1
+                        seq_gaps = gaps[gaps > 0].sum()
+                        seq_gaps_total += seq_gaps
+                        total_packets += len(seq_nums)
+            
+            metrics['sequence_gaps'] = int(seq_gaps_total)
+            if total_packets > 0:
+                metrics['packet_loss_rate'] = float(seq_gaps_total / total_packets)
+        
+        # Server metrics
+        if data['server_logs']:
+            try:
+                all_server_data = pd.concat(data['server_logs'], ignore_index=True)
+                
+                if 'cpu_percent' in all_server_data.columns:
+                    cpu_data = all_server_data['cpu_percent'].dropna()
+                    if len(cpu_data) > 0:
+                        metrics['server_cpu_mean'] = float(cpu_data.mean())
+                        metrics['server_cpu_max'] = float(cpu_data.max())
+                        metrics['server_cpu_samples'] = int(len(cpu_data))
+                
+                if 'bytes_sent' in all_server_data.columns:
+                    bytes_data = all_server_data['bytes_sent'].dropna()
+                    if len(bytes_data) > 0:
+                        metrics['total_bytes_sent'] = float(bytes_data.max() - bytes_data.min())
+            except Exception as e:
+                print(f"    Error processing server data: {e}")
         
         return metrics
     
-    def analyze_test_directory(self, test_dir):
-        """Analyze all logs in a test directory"""
-        test_name = test_dir.name
-        print(f"\nAnalyzing: {test_name}")
+    def calculate_position_error(self, scenario_name, data):
+        """Calculate perceived position error as per PDF requirements"""
+        print(f"  Calculating position error for {scenario_name}...")
         
-        # Find all client log files
-        client_logs = list(test_dir.glob("client_*.log"))
+        errors = []
         
-        if not client_logs:
-            print(f"  No client log files found!")
-            return None
+        if not data['client_logs'] or not data['server_logs']:
+            print(f"    Warning: Insufficient data for position error calculation")
+            return errors
         
-        test_metrics = {
-            'test_name': test_name,
-            'client_count': len(client_logs),
-            'clients': {},
-            'aggregate': {}
-        }
-        
-        all_latencies = []
-        all_update_rates = []
-        total_lost_packets = 0
-        total_expected_packets = 0
-        
-        for client_log in client_logs:
-            client_id = client_log.stem.split('_')[1]
-            print(f"  Client {client_id}: {client_log.name}")
+        # Process each run separately
+        for run_dir in data['run_dirs']:
+            # Find server log for this run
+            server_file = os.path.join(run_dir, "server_log.csv")
+            if not os.path.exists(server_file):
+                continue
             
-            # Parse the log file
-            metrics = self.parse_log_file(client_log)
-            test_metrics['clients'][client_id] = metrics
+            try:
+                server_df = pd.read_csv(server_file)
+            except:
+                continue
             
-            # Calculate client metrics
-            client_summary = {}
+            # Find client logs for this run
+            client_files = glob.glob(os.path.join(run_dir, "client_log_*.csv"))
+            if not client_files:
+                continue
             
-            if metrics['latency']:
-                latencies = np.array(metrics['latency'])
-                client_summary['latency_mean'] = float(np.mean(latencies))
-                client_summary['latency_std'] = float(np.std(latencies))
-                client_summary['latency_p95'] = float(np.percentile(latencies, 95))
-                client_summary['latency_samples'] = len(latencies)
-                all_latencies.extend(latencies)
+            for client_file in client_files:
+                try:
+                    client_df = pd.read_csv(client_file)
+                except:
+                    continue
                 
-                print(f"    Latency: {client_summary['latency_mean']:.1f}ms "
-                      f"(±{client_summary['latency_std']:.1f}ms, {client_summary['latency_samples']} samples)")
-            
-            if metrics['update_rate']:
-                rates = np.array(metrics['update_rate'])
-                client_summary['update_rate_mean'] = float(np.mean(rates))
-                client_summary['update_rate_std'] = float(np.std(rates))
-                client_summary['update_rate_samples'] = len(rates)
-                all_update_rates.extend(rates)
+                # Check if we have the right columns
+                server_pos_cols = ['player1_pos_x', 'player1_pos_y']
+                client_pos_cols = ['render_x', 'render_y']
                 
-                print(f"    Update rate: {client_summary['update_rate_mean']:.1f}Hz")
-            
-            # Calculate packet loss from sequence gaps
-            if metrics['snapshot_ids'] and len(metrics['snapshot_ids']) > 1:
-                snapshot_ids = sorted(set(metrics['snapshot_ids']))
-                if len(snapshot_ids) > 1:
-                    diffs = np.diff(snapshot_ids)
-                    lost_packets = sum(diff - 1 for diff in diffs if diff > 1)
-                    expected_packets = snapshot_ids[-1] - snapshot_ids[0] + 1
+                if all(col in server_df.columns for col in server_pos_cols) and \
+                   all(col in client_df.columns for col in client_pos_cols):
                     
-                    if expected_packets > 0:
-                        loss_rate = (lost_packets / expected_packets) * 100
-                        client_summary['packet_loss_rate'] = float(loss_rate)
-                        client_summary['lost_packets'] = int(lost_packets)
-                        client_summary['expected_packets'] = int(expected_packets)
+                    # Simple matching: take every 10th server position and find closest client position
+                    server_samples = server_df.iloc[::10]  # Sample every 10th row
+                    
+                    for _, server_row in server_samples.iterrows():
+                        server_time = server_row.get('timestamp', 0)
+                        server_x = server_row.get('player1_pos_x', 0)
+                        server_y = server_row.get('player1_pos_y', 0)
                         
-                        total_lost_packets += lost_packets
-                        total_expected_packets += expected_packets
+                        # Find closest client position in time
+                        if 'recv_time_ms' in client_df.columns:
+                            time_diffs = np.abs(client_df['recv_time_ms']/1000 - server_time)
+                        elif 'timestamp' in client_df.columns:
+                            time_diffs = np.abs(client_df['timestamp'] - server_time)
+                        else:
+                            continue
                         
-                        print(f"    Packet loss: {loss_rate:.1f}% ({lost_packets}/{expected_packets})")
-            
-            # Add lost packets from direct detection
-            if metrics['lost_packets']:
-                direct_loss = sum(metrics['lost_packets'])
-                print(f"    Direct lost packets: {direct_loss}")
-                if 'lost_packets' in client_summary:
-                    client_summary['lost_packets'] += direct_loss
-                else:
-                    client_summary['lost_packets'] = direct_loss
-            
-            # Store client summary
-            test_metrics['clients'][client_id]['summary'] = client_summary
+                        if len(time_diffs) > 0:
+                            min_idx = time_diffs.idxmin()
+                            if time_diffs[min_idx] < 0.5:  # Within 500ms
+                                client_x = client_df.loc[min_idx, 'render_x']
+                                client_y = client_df.loc[min_idx, 'render_y']
+                                
+                                # Calculate Euclidean distance
+                                error = np.sqrt((server_x - client_x)**2 + (server_y - client_y)**2)
+                                errors.append(error)
         
-        # Calculate aggregate metrics
-        if all_latencies:
-            test_metrics['aggregate']['latency_mean'] = float(np.mean(all_latencies))
-            test_metrics['aggregate']['latency_std'] = float(np.std(all_latencies))
-            test_metrics['aggregate']['latency_p95'] = float(np.percentile(all_latencies, 95))
-            test_metrics['aggregate']['latency_samples'] = len(all_latencies)
-        
-        if all_update_rates:
-            test_metrics['aggregate']['update_rate_mean'] = float(np.mean(all_update_rates))
-            test_metrics['aggregate']['update_rate_std'] = float(np.std(all_update_rates))
-            test_metrics['aggregate']['update_rate_samples'] = len(all_update_rates)
-        
-        if total_expected_packets > 0:
-            total_loss_rate = (total_lost_packets / total_expected_packets) * 100
-            test_metrics['aggregate']['packet_loss_rate'] = float(total_loss_rate)
-            test_metrics['aggregate']['lost_packets'] = total_lost_packets
-            test_metrics['aggregate']['expected_packets'] = total_expected_packets
-        
-        # Estimate position error (simplified)
-        all_positions = []
-        for client_id, client_data in test_metrics['clients'].items():
-            if 'positions' in client_data and client_data['positions']:
-                positions = client_data['positions']
-                if len(positions) > 1:
-                    # Calculate variance as proxy for error
-                    positions_array = np.array(positions)
-                    position_variance = np.var(positions_array, axis=0)
-                    avg_variance = np.mean(position_variance)
-                    all_positions.append(avg_variance)
-        
-        if all_positions:
-            test_metrics['aggregate']['position_error_mean'] = float(np.mean(all_positions))
-            test_metrics['aggregate']['position_error_std'] = float(np.std(all_positions))
-        
-        return test_metrics
+        print(f"    Position errors calculated: {len(errors)} samples")
+        return errors
     
-    def analyze_all_tests(self):
-        """Analyze all test directories"""
-        print("GRID CLASH TEST RESULTS ANALYSIS")
-        print("=" * 60)
+    def generate_plots(self, all_metrics, position_errors):
+        """Generate all required plots as per PDF"""
+        print("\n📈 Generating plots...")
         
-        if not self.results_dir.exists():
-            print(f"Error: Directory '{self.results_dir}' not found!")
+        if not all_metrics:
+            print("  Warning: No metrics to plot")
             return
         
-        # Get all test directories
-        test_dirs = [d for d in self.results_dir.iterdir() if d.is_dir()]
-        
-        if not test_dirs:
-            print(f"No test directories found in '{self.results_dir}'")
-            return
-        
-        # Analyze each test directory
-        for test_dir in test_dirs:
-            test_metrics = self.analyze_test_directory(test_dir)
-            if test_metrics:
-                self.metrics_summary[test_dir.name] = test_metrics
-        
-        if not self.metrics_summary:
-            print("\nNo test data could be analyzed!")
-            return
-        
-        # Generate summary report
-        self.generate_summary_report()
-        
-        # Generate plots
-        self.generate_plots()
-        
-        print("\n" + "=" * 60)
-        print("ANALYSIS COMPLETE!")
-        print(f"Summary report: {self.results_dir}/analysis_summary.csv")
-        print(f"Plots saved in: {self.results_dir}/plots/")
-    
-    def generate_summary_report(self):
-        """Generate summary report"""
-        print("\nGenerating summary report...")
-        
-        summary_data = []
-        
-        # Define test order for consistent display
-        test_order = ['baseline', 'loss_2pct', 'loss_5pct', 'delay_100ms', 'delay_jitter']
-        
-        for test_name in test_order:
-            if test_name in self.metrics_summary:
-                test = self.metrics_summary[test_name]
-                agg = test.get('aggregate', {})
-                
-                row = {
-                    'Test': test_name,
-                    'Description': test_name.replace('_', ' ').title(),
-                    'Clients': test.get('client_count', 0),
-                    'Latency_Samples': agg.get('latency_samples', 0)
-                }
-                
-                # Add metrics
-                if 'latency_mean' in agg:
-                    row.update({
-                        'Latency_Mean_ms': f"{agg['latency_mean']:.1f}",
-                        'Latency_Std_ms': f"{agg['latency_std']:.1f}",
-                        'Latency_P95_ms': f"{agg.get('latency_p95', agg['latency_mean']):.1f}"
-                    })
-                else:
-                    row.update({
-                        'Latency_Mean_ms': 'N/A',
-                        'Latency_Std_ms': 'N/A',
-                        'Latency_P95_ms': 'N/A'
-                    })
-                
-                if 'update_rate_mean' in agg:
-                    row['Update_Rate_Hz'] = f"{agg['update_rate_mean']:.1f}"
-                else:
-                    row['Update_Rate_Hz'] = 'N/A'
-                
-                if 'packet_loss_rate' in agg:
-                    row['PacketLoss_%'] = f"{agg['packet_loss_rate']:.1f}"
-                else:
-                    row['PacketLoss_%'] = 'N/A'
-                
-                if 'position_error_mean' in agg:
-                    row['Position_Error'] = f"{agg['position_error_mean']:.3f}"
-                else:
-                    row['Position_Error'] = 'N/A'
-                
-                summary_data.append(row)
-        
-        # Save to CSV
-        if summary_data:
-            df = pd.DataFrame(summary_data)
-            summary_file = self.results_dir / "analysis_summary.csv"
-            df.to_csv(summary_file, index=False)
-            
-            # Print summary
-            print("\n" + "="*80)
-            print("SUMMARY OF ALL TESTS")
-            print("="*80)
-            
-            # Create formatted table
-            headers = ['Test', 'Clients', 'Latency(ms)', 'Update(Hz)', 'Loss(%)', 'Pos_Err', 'Samples']
-            rows = []
-            
-            for row in summary_data:
-                latency = f"{row.get('Latency_Mean_ms', 'N/A')}"
-                if row.get('Latency_Std_ms', 'N/A') != 'N/A':
-                    latency += f" ±{row['Latency_Std_ms']}"
-                
-                rows.append([
-                    row['Test'],
-                    str(row['Clients']),
-                    latency,
-                    row.get('Update_Rate_Hz', 'N/A'),
-                    row.get('PacketLoss_%', 'N/A'),
-                    row.get('Position_Error', 'N/A'),
-                    str(row['Latency_Samples'])
-                ])
-            
-            # Print table
-            col_widths = [12, 8, 15, 10, 10, 10, 10]
-            header_fmt = "  ".join(f"{h:<{w}}" for h, w in zip(headers, col_widths))
-            print(header_fmt)
-            print("-" * 80)
-            
-            for row in rows:
-                row_fmt = "  ".join(f"{str(cell):<{w}}" for cell, w in zip(row, col_widths))
-                print(row_fmt)
-            
-            print("="*80)
-            
-            # Check acceptance criteria
-            self.check_acceptance_criteria()
-    
-    def check_acceptance_criteria(self):
-        """Check acceptance criteria from PDF"""
-        print("\nACCEPTANCE CRITERIA CHECK:")
-        print("-" * 40)
-        
-        if 'baseline' in self.metrics_summary:
-            baseline = self.metrics_summary['baseline'].get('aggregate', {})
-            
-            if 'latency_mean' in baseline:
-                latency = baseline['latency_mean']
-                latency_ok = latency <= 50
-                status = '✓' if latency_ok else '✗'
-                print(f"Baseline: Latency ≤ 50ms: {status} ({latency:.1f}ms)")
-            else:
-                print(f"Baseline: Latency ≤ 50ms: ? (No data)")
-            
-            if 'update_rate_mean' in baseline:
-                update_rate = baseline['update_rate_mean']
-                update_ok = update_rate >= 18
-                status = '✓' if update_ok else '✗'
-                print(f"         Update Rate ≥ 18Hz: {status} ({update_rate:.1f}Hz)")
-            else:
-                print(f"         Update Rate ≥ 18Hz: ? (No data)")
-        
-        if 'loss_2pct' in self.metrics_summary:
-            loss2 = self.metrics_summary['loss_2pct'].get('aggregate', {})
-            
-            if 'position_error_mean' in loss2:
-                error = loss2['position_error_mean']
-                error_ok = error <= 0.5
-                status = '✓' if error_ok else '✗'
-                print(f"Loss 2%: Position Error ≤ 0.5: {status} ({error:.3f})")
-            else:
-                print(f"Loss 2%: Position Error ≤ 0.5: ? (No data)")
-        
-        if 'loss_5pct' in self.metrics_summary:
-            loss5 = self.metrics_summary['loss_5pct'].get('aggregate', {})
-            
-            if 'packet_loss_rate' in loss5:
-                loss_rate = loss5['packet_loss_rate']
-                print(f"Loss 5%: Packet loss ~{loss_rate:.1f}%")
-            
-            print(f"Loss 5%: Critical events delivered (check logs)")
-        
-        print("-" * 40)
-    
-    def generate_plots(self):
-        """Generate plots"""
-        plots_dir = self.results_dir / "plots"
-        plots_dir.mkdir(exist_ok=True)
-        
-        print(f"\nGenerating plots in: {plots_dir}")
-        
-        # Prepare data
-        test_names = []
+        # Prepare data for plotting
+        scenarios = []
         latency_means = []
-        latency_stds = []
-        update_rates = []
-        packet_losses = []
-        position_errors = []
+        latency_medians = []
+        latency_95th = []
+        cpu_means = []
+        pos_error_means = []
+        pos_error_95th = []
+        loss_rates = []
         
-        test_order = ['baseline', 'loss_2pct', 'loss_5pct', 'delay_100ms', 'delay_jitter']
-        
-        for test_name in test_order:
-            if test_name in self.metrics_summary:
-                agg = self.metrics_summary[test_name].get('aggregate', {})
+        for scenario in self.scenarios:
+            if scenario in all_metrics:
+                metrics = all_metrics[scenario]
+                scenarios.append(scenario.replace('_', '\n'))
                 
-                if 'latency_mean' in agg:
-                    test_names.append(test_name.replace('_', ' ').title())
-                    latency_means.append(agg['latency_mean'])
-                    latency_stds.append(agg.get('latency_std', 0))
+                latency_means.append(metrics.get('latency_mean', 0))
+                latency_medians.append(metrics.get('latency_median', 0))
+                latency_95th.append(metrics.get('latency_95th', 0))
+                cpu_means.append(metrics.get('server_cpu_mean', 0))
+                loss_rates.append(metrics.get('packet_loss_rate', 0) * 100)
+                
+                errors = position_errors.get(scenario, [])
+                if errors:
+                    pos_error_means.append(np.mean(errors))
+                    pos_error_95th.append(np.percentile(errors, 95))
+                else:
+                    pos_error_means.append(0)
+                    pos_error_95th.append(0)
+        
+        # 1. Main summary plot
+        fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+        fig.suptitle('Grid Clash Protocol Performance Analysis', fontsize=16, fontweight='bold')
+        
+        # Plot 1: Latency
+        ax1 = axes[0, 0]
+        x = np.arange(len(scenarios))
+        width = 0.25
+        
+        ax1.bar(x - width, latency_means, width, label='Mean', alpha=0.8, color='steelblue')
+        ax1.bar(x, latency_medians, width, label='Median', alpha=0.8, color='lightblue')
+        ax1.bar(x + width, latency_95th, width, label='95th %ile', alpha=0.8, color='darkblue')
+        
+        ax1.set_xlabel('Network Scenario', fontweight='bold')
+        ax1.set_ylabel('Latency (ms)', fontweight='bold')
+        ax1.set_title('Latency by Scenario', fontweight='bold')
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(scenarios, rotation=45, ha='right')
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+        
+        # Add latency requirement line (50ms from PDF)
+        ax1.axhline(y=50, color='red', linestyle='--', alpha=0.7, linewidth=1.5)
+        ax1.text(len(scenarios)-0.5, 52, 'Max (50ms)', color='red', fontsize=9)
+        
+        # Plot 2: Position Error
+        ax2 = axes[0, 1]
+        if any(pos_error_means):
+            ax2.bar(x - width/2, pos_error_means, width, label='Mean Error', alpha=0.8, color='orange')
+            ax2.bar(x + width/2, pos_error_95th, width, label='95th %ile', alpha=0.8, color='darkorange')
+            
+            ax2.set_xlabel('Network Scenario', fontweight='bold')
+            ax2.set_ylabel('Position Error (units)', fontweight='bold')
+            ax2.set_title('Perceived Position Error', fontweight='bold')
+            ax2.set_xticks(x)
+            ax2.set_xticklabels(scenarios, rotation=45, ha='right')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+            
+            # Add requirement lines from PDF
+            ax2.axhline(y=0.5, color='green', linestyle='--', alpha=0.7, linewidth=1.5, label='LAN req (0.5)')
+            ax2.axhline(y=1.5, color='blue', linestyle='--', alpha=0.7, linewidth=1.5, label='WAN req (1.5)')
+        
+        # Plot 3: Packet Loss
+        ax3 = axes[1, 0]
+        ax3.bar(x, loss_rates, width=0.6, alpha=0.7, color='purple')
+        ax3.set_xlabel('Network Scenario', fontweight='bold')
+        ax3.set_ylabel('Packet Loss Rate (%)', color='purple', fontweight='bold')
+        ax3.set_title('Packet Loss Analysis', fontweight='bold')
+        ax3.set_xticks(x)
+        ax3.set_xticklabels(scenarios, rotation=45, ha='right')
+        ax3.tick_params(axis='y', labelcolor='purple')
+        ax3.grid(True, alpha=0.3)
+        
+        # Plot 4: Server CPU
+        ax4 = axes[1, 1]
+        ax4.bar(x, cpu_means, width=0.6, alpha=0.7, color='green')
+        ax4.set_xlabel('Network Scenario', fontweight='bold')
+        ax4.set_ylabel('CPU Usage (%)', color='green', fontweight='bold')
+        ax4.set_title('Server CPU Utilization', fontweight='bold')
+        ax4.set_xticks(x)
+        ax4.set_xticklabels(scenarios, rotation=45, ha='right')
+        ax4.tick_params(axis='y', labelcolor='green')
+        ax4.grid(True, alpha=0.3)
+        
+        # Add CPU requirement line (60% from PDF)
+        ax4.axhline(y=60, color='red', linestyle='--', alpha=0.7, linewidth=1.5)
+        ax4.text(len(scenarios)-0.5, 62, 'Max (60%)', color='red', fontsize=9)
+        
+        plt.tight_layout()
+        plt.savefig('analysis_plots/summary_analysis.png', dpi=300, bbox_inches='tight')
+        plt.savefig('analysis_plots/summary_analysis.pdf', bbox_inches='tight')
+        plt.close()
+        print("  ✅ Saved: analysis_plots/summary_analysis.png")
+        
+        # 2. Detailed latency distribution for baseline
+        if 'baseline' in all_metrics:
+            baseline_data = self.load_scenario_data('baseline')
+            if baseline_data['client_logs']:
+                try:
+                    baseline_df = pd.concat(baseline_data['client_logs'])
                     
-                    if 'update_rate_mean' in agg:
-                        update_rates.append(agg['update_rate_mean'])
-                    else:
-                        update_rates.append(0)
+                    # Find latency column
+                    latency_col = None
+                    for col in ['latency_ms', 'latency']:
+                        if col in baseline_df.columns:
+                            latency_col = col
+                            break
                     
-                    if 'packet_loss_rate' in agg:
-                        packet_losses.append(agg['packet_loss_rate'])
-                    else:
-                        packet_losses.append(0)
-                    
-                    if 'position_error_mean' in agg:
-                        position_errors.append(agg['position_error_mean'])
-                    else:
-                        position_errors.append(0)
+                    if latency_col and latency_col in baseline_df.columns:
+                        plt.figure(figsize=(10, 6))
+                        latency_data = baseline_df[latency_col].dropna()
+                        
+                        if len(latency_data) > 0:
+                            plt.hist(latency_data, bins=50, alpha=0.7, edgecolor='black', color='steelblue')
+                            
+                            median_val = np.median(latency_data)
+                            percentile_95 = np.percentile(latency_data, 95)
+                            
+                            plt.axvline(median_val, color='red', linestyle='--', 
+                                      label=f'Median: {median_val:.1f}ms')
+                            plt.axvline(percentile_95, color='orange', linestyle='--', 
+                                      label=f'95th %ile: {percentile_95:.1f}ms')
+                            
+                            plt.xlabel('Latency (ms)', fontweight='bold')
+                            plt.ylabel('Frequency', fontweight='bold')
+                            plt.title('Baseline Latency Distribution', fontweight='bold')
+                            plt.legend()
+                            plt.grid(True, alpha=0.3)
+                            
+                            plt.savefig('analysis_plots/baseline_latency_distribution.png', 
+                                      dpi=300, bbox_inches='tight')
+                            plt.close()
+                            print("  ✅ Saved: analysis_plots/baseline_latency_distribution.png")
+                except Exception as e:
+                    print(f"  Warning: Could not create baseline plot: {e}")
         
-        if not test_names:
-            print("No data available for plotting")
-            return
-        
-        # 1. Latency plot
-        self.plot_metric(test_names, latency_means, latency_stds, 
-                        'Latency (ms)', 'latency_comparison.png', 
-                        plots_dir, target=50)
-        
-        # 2. Update rate plot
-        if any(r > 0 for r in update_rates):
-            self.plot_metric(test_names, update_rates, None,
-                           'Update Rate (Hz)', 'update_rate_comparison.png',
-                           plots_dir, target=20)
-        
-        # 3. Packet loss plot
-        if any(l > 0 for l in packet_losses):
-            self.plot_metric(test_names, packet_losses, None,
-                           'Packet Loss (%)', 'packet_loss_comparison.png',
-                           plots_dir)
-        
-        # 4. Combined metrics
-        self.plot_combined_metrics(plots_dir, test_names, 
-                                  latency_means, update_rates, 
-                                  packet_losses, position_errors)
-    
-    def plot_metric(self, test_names, values, errors, ylabel, filename, plots_dir, target=None):
-        """Plot a single metric"""
+        # 3. Position error vs loss rate
         plt.figure(figsize=(10, 6))
         
-        x_pos = np.arange(len(test_names))
-        colors = [self.colors.get(name.lower().replace(' ', '_'), '#666666') 
-                 for name in test_names]
+        loss_scenarios = ['baseline', 'loss_2pct', 'loss_5pct']
+        plot_errors_mean = []
+        plot_errors_95th = []
+        plot_loss_rates = []
         
-        if errors:
-            plt.bar(x_pos, values, yerr=errors, capsize=5, 
-                   color=colors, alpha=0.7, width=0.6)
-        else:
-            plt.bar(x_pos, values, color=colors, alpha=0.7, width=0.6)
+        for scenario in loss_scenarios:
+            if scenario in all_metrics and scenario in position_errors:
+                errors = position_errors[scenario]
+                if errors:
+                    plot_errors_mean.append(np.mean(errors))
+                    plot_errors_95th.append(np.percentile(errors, 95))
+                    plot_loss_rates.append(all_metrics[scenario].get('packet_loss_rate', 0) * 100)
         
-        plt.xlabel('Test Scenario')
-        plt.ylabel(ylabel)
-        plt.title(f'{ylabel} by Test Scenario')
-        plt.xticks(x_pos, test_names, rotation=45, ha='right')
-        plt.grid(True, alpha=0.3, axis='y')
-        
-        # Add target line if specified
-        if target is not None:
-            plt.axhline(y=target, color='red', linestyle='--', alpha=0.5, label=f'Target ({target})')
+        if len(plot_errors_mean) > 1:
+            x_vals = np.array(plot_loss_rates)
+            y_mean = np.array(plot_errors_mean)
+            y_95th = np.array(plot_errors_95th)
+            
+            plt.plot(x_vals, y_mean, 'bo-', linewidth=2, markersize=10, label='Mean Error')
+            plt.plot(x_vals, y_95th, 'ro-', linewidth=2, markersize=10, label='95th %ile Error')
+            
+            # Label each point
+            for i, (x, y) in enumerate(zip(x_vals, y_mean)):
+                plt.text(x, y + 0.05, f'{loss_scenarios[i]}', fontsize=9, ha='center')
+            
+            # PDF requirements
+            plt.axhline(y=0.5, color='green', linestyle='--', alpha=0.7, 
+                       linewidth=1.5, label='LAN Requirement (0.5)')
+            plt.axhline(y=1.5, color='orange', linestyle='--', alpha=0.7, 
+                       linewidth=1.5, label='WAN Requirement (1.5)')
+            
+            plt.xlabel('Packet Loss Rate (%)', fontweight='bold')
+            plt.ylabel('Position Error (units)', fontweight='bold')
+            plt.title('Position Error vs Packet Loss Rate', fontweight='bold')
             plt.legend()
+            plt.grid(True, alpha=0.3)
+            
+            plt.savefig('analysis_plots/position_error_vs_loss.png', dpi=300, bbox_inches='tight')
+            plt.close()
+            print("  ✅ Saved: analysis_plots/position_error_vs_loss.png")
         
-        # Add value labels
-        for i, v in enumerate(values):
-            if v > 0 or ylabel == 'Latency (ms)':  # Always show latency
-                y_err = errors[i] if errors and i < len(errors) else 0
-                plt.text(i, v + y_err + (v * 0.05 if v > 0 else 1), 
-                       f'{v:.1f}', ha='center', va='bottom', fontsize=9)
-        
-        plt.tight_layout()
-        plt.savefig(plots_dir / filename, dpi=150, bbox_inches='tight')
-        plt.close()
-        
-        print(f"  Created: {filename}")
+        print("  ✅ All plots generated")
     
-    def plot_combined_metrics(self, plots_dir, test_names, latency_means, 
-                             update_rates, packet_losses, position_errors):
-        """Plot combined metrics"""
-        # Determine which metrics have data
-        metrics_data = []
-        labels = []
+    def save_detailed_report(self, all_metrics, position_errors):
+        """Save detailed CSV report as per PDF requirements"""
+        print("\n📄 Generating detailed report...")
         
-        if any(l > 0 for l in latency_means):
-            metrics_data.append(latency_means)
-            labels.append('Latency (ms)')
+        report_data = []
         
-        if any(r > 0 for r in update_rates):
-            metrics_data.append(update_rates)
-            labels.append('Update Rate (Hz)')
+        for scenario in self.scenarios:
+            if scenario in all_metrics:
+                metrics = all_metrics[scenario]
+                errors = position_errors.get(scenario, [])
+                
+                row = {
+                    'scenario': scenario,
+                    'runs_analyzed': metrics.get('runs_analyzed', 0),
+                    'total_packets': metrics.get('total_packets', 0),
+                    'unique_clients': metrics.get('unique_clients', 0),
+                    'latency_mean_ms': metrics.get('latency_mean', 0),
+                    'latency_median_ms': metrics.get('latency_median', 0),
+                    'latency_95th_ms': metrics.get('latency_95th', 0),
+                    'latency_std_ms': metrics.get('latency_std', 0),
+                    'latency_samples': metrics.get('latency_samples', 0),
+                    'jitter_mean_ms': metrics.get('jitter_mean', 0),
+                    'jitter_95th_ms': metrics.get('jitter_95th', 0),
+                    'sequence_gaps': metrics.get('sequence_gaps', 0),
+                    'packet_loss_rate_percent': metrics.get('packet_loss_rate', 0) * 100,
+                    'server_cpu_mean_percent': metrics.get('server_cpu_mean', 0),
+                    'server_cpu_max_percent': metrics.get('server_cpu_max', 0),
+                    'total_bytes_sent_mb': metrics.get('total_bytes_sent', 0) / (1024 * 1024) if metrics.get('total_bytes_sent') else 0,
+                    'position_error_mean': np.mean(errors) if errors else 0,
+                    'position_error_median': np.median(errors) if errors else 0,
+                    'position_error_95th': np.percentile(errors, 95) if errors else 0,
+                    'position_error_samples': len(errors) if errors else 0,
+                }
+                report_data.append(row)
         
-        if any(l > 0 for l in packet_losses):
-            metrics_data.append(packet_losses)
-            labels.append('Packet Loss (%)')
+        df = pd.DataFrame(report_data)
         
-        if any(e > 0 for e in position_errors):
-            metrics_data.append(position_errors)
-            labels.append('Position Error')
+        # Save CSV
+        csv_path = 'detailed_analysis_report.csv'
+        df.to_csv(csv_path, index=False)
+        print(f"  ✅ Saved CSV: {csv_path}")
         
-        if len(metrics_data) == 0:
-            return
-        
-        n_metrics = len(metrics_data)
-        fig, axes = plt.subplots(1, n_metrics, figsize=(5*n_metrics, 6))
-        if n_metrics == 1:
-            axes = [axes]
-        
-        colors = [self.colors.get(name.lower().replace(' ', '_'), '#666666') 
-                 for name in test_names]
-        
-        for idx, (data, label) in enumerate(zip(metrics_data, labels)):
-            ax = axes[idx]
-            bars = ax.bar(test_names, data, color=colors, alpha=0.7, width=0.6)
+        # Save formatted text report
+        txt_path = 'analysis_summary.txt'
+        with open(txt_path, 'w') as f:
+            f.write("="*80 + "\n")
+            f.write("GRID CLASH - EXPERIMENTAL RESULTS SUMMARY\n")
+            f.write("="*80 + "\n")
+            f.write(f"Analysis date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"Results directory: {self.results_dir}\n")
+            f.write("="*80 + "\n\n")
             
-            ax.set_xlabel('Test Scenario')
-            ax.set_ylabel(label)
-            ax.set_title(label)
-            ax.set_xticklabels(test_names, rotation=45, ha='right')
-            ax.grid(True, alpha=0.3, axis='y')
-            
-            # Add value labels
-            for i, v in enumerate(data):
-                if v > 0 or label == 'Latency (ms)':
-                    ax.text(i, v + (v * 0.05 if v > 0 else 0.01), 
-                           f'{v:.1f}', ha='center', va='bottom', fontsize=8)
+            for scenario in self.scenarios:
+                if scenario in all_metrics:
+                    metrics = all_metrics[scenario]
+                    errors = position_errors.get(scenario, [])
+                    
+                    f.write(f"SCENARIO: {scenario.upper()}\n")
+                    f.write("-"*40 + "\n")
+                    
+                    f.write(f"Runs analyzed: {metrics.get('runs_analyzed', 0)}/5\n")
+                    f.write(f"Total packets: {metrics.get('total_packets', 0):,}\n")
+                    f.write(f"Unique clients: {metrics.get('unique_clients', 0)}\n")
+                    
+                    if 'latency_mean' in metrics:
+                        f.write(f"Latency: {metrics['latency_mean']:.1f}ms mean, "
+                               f"{metrics['latency_median']:.1f}ms median, "
+                               f"{metrics['latency_95th']:.1f}ms 95th %ile\n")
+                    
+                    if 'jitter_mean' in metrics:
+                        f.write(f"Jitter: {metrics['jitter_mean']:.1f}ms mean, "
+                               f"{metrics['jitter_95th']:.1f}ms 95th %ile\n")
+                    
+                    if 'packet_loss_rate' in metrics:
+                        f.write(f"Packet loss: {metrics['packet_loss_rate']*100:.2f}% "
+                               f"({metrics.get('sequence_gaps', 0)} gaps)\n")
+                    
+                    if 'server_cpu_mean' in metrics:
+                        f.write(f"Server CPU: {metrics['server_cpu_mean']:.1f}% mean, "
+                               f"{metrics['server_cpu_max']:.1f}% max\n")
+                    
+                    if errors:
+                        f.write(f"Position error: {np.mean(errors):.3f} mean, "
+                               f"{np.median(errors):.3f} median, "
+                               f"{np.percentile(errors, 95):.3f} 95th %ile\n")
+                    
+                    # PDF Acceptance Criteria
+                    f.write("\nPDF ACCEPTANCE CRITERIA:\n")
+                    
+                    if scenario == "baseline":
+                        latency_ok = metrics.get('latency_mean', 999) <= 50
+                        cpu_ok = metrics.get('server_cpu_mean', 999) <= 60
+                        
+                        f.write(f"  Latency ≤ 50ms: {'✅ PASS' if latency_ok else '❌ FAIL'} "
+                               f"({metrics.get('latency_mean', 0):.1f}ms)\n")
+                        f.write(f"  CPU ≤ 60%: {'✅ PASS' if cpu_ok else '❌ FAIL'} "
+                               f"({metrics.get('server_cpu_mean', 0):.1f}%)\n")
+                    
+                    elif scenario == "loss_2pct":
+                        if errors:
+                            error_ok = np.mean(errors) <= 0.5
+                            f.write(f"  Position error ≤ 0.5 units: "
+                                   f"{'✅ PASS' if error_ok else '❌ FAIL'} "
+                                   f"({np.mean(errors):.3f} units)\n")
+                    
+                    elif scenario == "loss_5pct":
+                        # Critical events delivered ≥99% within 200ms
+                        if 'latency_95th' in metrics:
+                            critical_ok = metrics['latency_95th'] <= 200
+                            f.write(f"  95th %ile latency ≤ 200ms: "
+                                   f"{'✅ PASS' if critical_ok else '❌ FAIL'} "
+                                   f"({metrics['latency_95th']:.1f}ms)\n")
+                    
+                    f.write("\n")
         
-        plt.tight_layout()
-        plt.savefig(plots_dir / 'combined_metrics.png', dpi=150, bbox_inches='tight')
-        plt.close()
+        print(f"  ✅ Saved text summary: {txt_path}")
         
-        print(f"  Created: combined_metrics.png")
+        # Save raw metrics JSON
+        json_path = 'raw_metrics.json'
+        with open(json_path, 'w') as f:
+            json.dump(all_metrics, f, indent=2, default=str)
+        print(f"  ✅ Saved raw metrics: {json_path}")
 
 def main():
-    import argparse
+    """Main analysis function"""
+    print("="*80)
+    print("GRID CLASH - EXPERIMENTAL RESULTS ANALYZER")
+    print("="*80)
     
-    parser = argparse.ArgumentParser(description='Analyze Grid Clash test results from log files')
-    parser.add_argument('--dir', '-d', default='test_results',
-                       help='Results directory (default: test_results)')
-    
+    parser = argparse.ArgumentParser(description="Analyze Grid Clash test results")
+    parser.add_argument("--results-dir", default="test_results", 
+                       help="Directory containing test results")
+    parser.add_argument("--scenario", choices=["all", "baseline", "loss_2pct", 
+                                              "loss_5pct", "delay_100ms", "delay_jitter"],
+                       default="all", help="Scenario to analyze")
     args = parser.parse_args()
     
-    analyzer = GridClashAnalyzer(results_dir=args.dir)
-    analyzer.analyze_all_tests()
+    print(f"Results directory: {args.results_dir}")
+    print(f"Scenario: {args.scenario}")
+    print("="*80)
+    
+    # Check if results directory exists
+    if not os.path.exists(args.results_dir):
+        print(f"❌ Error: Results directory '{args.results_dir}' not found!")
+        print(f"   Current directory: {os.getcwd()}")
+        print(f"   Available directories: {[d for d in os.listdir('.') if os.path.isdir(d)]}")
+        return
+    
+    analyzer = ResultsAnalyzer(args.results_dir)
+    
+    # Determine which scenarios to analyze
+    if args.scenario == "all":
+        scenarios_to_analyze = analyzer.scenarios
+    else:
+        scenarios_to_analyze = [args.scenario]
+    
+    # Analyze each scenario
+    all_metrics = {}
+    position_errors = {}
+    
+    for scenario in scenarios_to_analyze:
+        print(f"\n📊 Analyzing scenario: {scenario}")
+        
+        # Load data
+        data = analyzer.load_scenario_data(scenario)
+        
+        if not data['client_logs']:
+            print(f"  ⚠️  No data found for {scenario}")
+            continue
+        
+        # Calculate metrics
+        metrics = analyzer.calculate_metrics(scenario, data)
+        all_metrics[scenario] = metrics
+        
+        # Calculate position error
+        errors = analyzer.calculate_position_error(scenario, data)
+        position_errors[scenario] = errors
+    
+    # Generate outputs
+    if all_metrics:
+        analyzer.generate_plots(all_metrics, position_errors)
+        analyzer.save_detailed_report(all_metrics, position_errors)
+    else:
+        print("\n❌ No data was analyzed. Check that:")
+        print(f"   1. Test results exist in '{args.results_dir}'")
+        print(f"   2. CSV files are in {args.results_dir}/scenario_name/run_*/")
+        print(f"   3. CSV files follow naming: client_log_*.csv and server_log.csv")
+    
+    print("\n" + "="*80)
+    print("ANALYSIS COMPLETE")
+    print("="*80)
+    print("Output files created:")
+    print("  📈 analysis_plots/ - Contains all graphs")
+    print("  📊 detailed_analysis_report.csv - Detailed metrics (Excel-friendly)")
+    print("  📋 analysis_summary.txt - Human-readable summary")
+    print("  📄 raw_metrics.json - Raw data for further analysis")
+    print("="*80)
 
 if __name__ == "__main__":
     main()
