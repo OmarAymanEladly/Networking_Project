@@ -1,6 +1,0 @@
-Test,Description,Clients,Latency_Samples,Latency_Mean_ms,Latency_Std_ms,Latency_P95_ms,Update_Rate_Hz,PacketLoss_%
-baseline,Baseline (no impairment),4,0,N/A,N/A,N/A,N/A,N/A
-loss_2pct,Loss 2% (LAN-like),4,0,N/A,N/A,N/A,N/A,N/A
-loss_5pct,Loss 5% (WAN-like),4,0,N/A,N/A,N/A,N/A,N/A
-delay_100ms,Delay 100ms (WAN delay),4,0,N/A,N/A,N/A,N/A,N/A
-delay_jitter,Delay + Jitter (100ms ±10ms),4,0,N/A,N/A,N/A,N/A,N/A
