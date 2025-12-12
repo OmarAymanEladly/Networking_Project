@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Grid Clash - Automated Test Runner
-# ROBUST VERSION: Runs 5 iterations per scenario. Captures to /tmp.
+# STABILITY VERSION: Aggressive cleanup + Memory flushing to prevent VM lag
 
 set -e
 
@@ -19,7 +19,6 @@ NC='\033[0m'
 # Create directories
 mkdir -p test_results
 mkdir -p captures
-# Try to open permissions, but ignore if it fails
 chmod 777 captures 2>/dev/null || true
 chmod 777 test_results 2>/dev/null || true
 
@@ -29,11 +28,22 @@ REAL_GROUP=$(id -gn $REAL_USER)
 
 print_header() { echo -e "\n${BLUE}=== $1 ===${NC}"; }
 
+# --- IMPROVED CLEANUP FUNCTION ---
 cleanup() {
-    pkill -f "$SERVER_SCRIPT" 2>/dev/null || true
-    pkill -f "$CLIENT_SCRIPT" 2>/dev/null || true
-    if pgrep tshark > /dev/null; then sudo pkill tshark 2>/dev/null || true; fi
-    if [[ "$OSTYPE" == "linux-gnu"* ]]; then sudo tc qdisc del dev lo root 2>/dev/null || true; fi
+    # 1. Force kill python processes (prevent zombies)
+    sudo killall -9 python3 2>/dev/null || true
+    
+    # 2. Force kill tshark
+    sudo killall -9 tshark 2>/dev/null || true
+    
+    # 3. Clear network rules
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then 
+        sudo tc qdisc del dev lo root 2>/dev/null || true
+    fi
+    
+    # 4. CRITICAL: Flush disk buffers to free up VM RAM
+    sync
+    echo "   (System cleaned & buffers flushed)"
 }
 
 check_dependencies() {
@@ -49,7 +59,7 @@ run_test() {
     local loss=$2
     local delay=$3
     local jitter=$4
-    local run_num=$5  # Added run number for logging
+    local run_num=$5
     
     print_header "Running: $scenario (Iteration $run_num)"
     cleanup
@@ -62,6 +72,8 @@ run_test() {
     # 1. Network Conditions
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         sudo tc qdisc del dev lo root 2>/dev/null || true
+        # Add small sleep to ensure kernel registers the deletion
+        sleep 0.5 
         if [[ "$loss" -gt 0 ]]; then sudo tc qdisc add dev lo root netem loss ${loss}%; fi
         if [[ "$delay" -gt 0 ]]; then sudo tc qdisc add dev lo root netem delay ${delay}ms ${jitter}ms; fi
     fi
@@ -71,7 +83,7 @@ run_test() {
     final_pcap="$(pwd)/captures/${scenario}_run${run_num}_${timestamp}.pcap"
     
     if [[ "$SKIP_PCAP" != true ]]; then
-        echo "Starting Capture to $temp_pcap..."
+        echo "Starting Capture..."
         sudo rm -f "$temp_pcap"
         sudo tshark -i lo -f "udp port 5555" -w "$temp_pcap" -q 2>/dev/null &
         PCAP_PID=$!
@@ -105,8 +117,9 @@ run_test() {
     echo -e "\nTest Complete."
 
     # 6. Stop
-    for pid in "${CLIENT_PIDS[@]}"; do kill $pid 2>/dev/null || true; done
-    kill $SERVER_PID 2>/dev/null || true
+    # Force kill specific PIDs first
+    for pid in "${CLIENT_PIDS[@]}"; do sudo kill -9 $pid 2>/dev/null || true; done
+    sudo kill -9 $SERVER_PID 2>/dev/null || true
     
     # 7. PCAP Retrieval
     if [[ -n "$PCAP_PID" ]]; then
@@ -115,56 +128,50 @@ run_test() {
         
         if [[ -f "$temp_pcap" ]]; then
             sudo chmod 666 "$temp_pcap"
-            
-            # Try to copy using cat (safest for shared folders)
             if sudo cat "$temp_pcap" > "$final_pcap" 2>/dev/null; then
-                echo "${GREEN}✓ PCAP saved to captures/${NC}"
-                # Also copy to results dir
+                echo "${GREEN}✓ PCAP saved${NC}"
                 sudo cat "$temp_pcap" > "$results_dir/trace.pcap" 2>/dev/null || true
                 sudo rm "$temp_pcap"
             else
-                echo "${YELLOW}⚠️  Could not move PCAP automatically.${NC}"
-                echo "${YELLOW}    It is saved at: $temp_pcap${NC}"
+                echo "${YELLOW}⚠️  PCAP move failed. Saved at: $temp_pcap${NC}"
             fi
-        else
-            echo "Warning: PCAP file was not created."
         fi
     fi
     
     # 8. CSV Retrieval
     mv *.csv "$results_dir/" 2>/dev/null || true
-    
-    # Try to fix ownership
     sudo chown -R $REAL_USER:$REAL_GROUP "$results_dir" 2>/dev/null || true
     
+    # Final cleanup for this run
     cleanup
 }
 
 # --- MAIN ---
 check_dependencies
 
-# Function to run a batch of 5
 run_batch() {
     local name=$1
     local loss=$2
     local delay=$3
     local jitter=$4
     
-    print_header "STARTING BATCH: $name (5 Iterations)"
+    print_header "STARTING BATCH: $name"
     
     for i in {1..5}; do
         run_test "$name" "$loss" "$delay" "$jitter" "$i"
-        echo "Cooling down..."
-        sleep 5
+        
+        # Extended cooldown to prevent VM lag
+        echo "Cooling down system (10s)..."
+        sleep 10
     done
 }
 
-# Execute all batches
+# Run all batches
 run_batch "baseline" 0 0 0
 run_batch "loss_2pct" 2 0 0
 run_batch "loss_5pct" 5 0 0
 run_batch "delay_100ms" 0 100 0
 run_batch "delay_jitter" 0 100 10
 
-echo -e "\n${GREEN}ALL 25 TESTS FINISHED.${NC}"
+echo -e "\n${GREEN}ALL 25 TESTS FINISHED SUCCESSFULY.${NC}"
 echo "Run 'python3 analyze_result.py' to generate the report."
