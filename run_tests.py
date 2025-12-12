@@ -35,21 +35,12 @@ def setup_netem():
     if not IS_LINUX:
         return None
     
-    # Try different interfaces
-    interfaces_to_try = ['lo', 'eth0', 'enp0s3', 'ens33']
+    print("✅ Using loopback interface (lo) for testing")
+    return 'lo'
     
-    for interface in interfaces_to_try:
-        try:
-            result = subprocess.run(['ip', 'link', 'show', interface], 
-                                  capture_output=True, text=True)
-            if result.returncode == 0:
-                print(f"✅ Using interface: {interface}")
-                return interface
-        except:
-            continue
     
-    print("ERROR: No suitable network interface found")
-    return None
+    
+
 
 def apply_netem(interface, loss=0, delay=0, jitter=0):
     """Apply netem configuration with validation"""
