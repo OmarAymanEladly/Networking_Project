@@ -55,7 +55,9 @@ print_error() {
 }
 
 cleanup() {
-    print_header "Cleaning up..."
+    echo -e "\n${BLUE}========================================${NC}"
+    echo -e "${BLUE}  Cleaning up...${NC}"
+    echo -e "${BLUE}========================================${NC}"
     
     # Kill any running processes
     pkill -f "$SERVER_SCRIPT" 2>/dev/null || true
@@ -68,7 +70,7 @@ cleanup() {
     fi
     
     sleep 2
-    print_success "Cleanup complete"
+    echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
 
 check_dependencies() {
@@ -153,40 +155,61 @@ start_pcap_capture() {
     
     if [[ "$SKIP_PCAP" == true ]]; then
         echo "Skipping PCAP capture (tshark not available)"
-        return
+        return ""
     fi
     
     print_header "Starting PCAP Capture"
     echo "Saving to: $pcap_file"
     
+    # Ensure captures directory is writable
+    sudo chmod 777 captures 2>/dev/null || true
+    
     # Determine interface
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         INTERFACE="lo"
+        echo "Using interface: $INTERFACE"
+        
+        # Try to capture with sudo
         sudo tshark -i $INTERFACE -f "udp port 5555" -w "$pcap_file" -q &
+        PCAP_PID=$!
+        sleep 3
+        
+        # Check if it's running
+        if ps -p $PCAP_PID > /dev/null 2>&1; then
+            print_success "PCAP capture started (PID: $PCAP_PID)"
+            echo "$pcap_file"
+        else
+            print_warning "PCAP capture failed to start"
+            echo ""
+        fi
+        
     elif [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS - usually doesn't need sudo for loopback
         INTERFACE="lo0"
+        echo "Using interface: $INTERFACE"
+        
         tshark -i $INTERFACE -f "udp port 5555" -w "$pcap_file" -q &
+        PCAP_PID=$!
+        sleep 3
+        
+        if ps -p $PCAP_PID > /dev/null 2>&1; then
+            print_success "PCAP capture started (PID: $PCAP_PID)"
+            echo "$pcap_file"
+        else
+            print_warning "PCAP capture failed to start"
+            echo ""
+        fi
     else
-        # Windows or unknown
-        tshark -i 1 -f "udp port 5555" -w "$pcap_file" -q &
-    fi
-    
-    PCAP_PID=$!
-    sleep 3
-    
-    if ps -p $PCAP_PID > /dev/null; then
-        print_success "PCAP capture started (PID: $PCAP_PID)"
-        echo $pcap_file
-    else
-        print_warning "PCAP capture failed to start"
+        # Windows or unknown - skip PCAP
+        print_warning "PCAP capture not supported on this OS"
         echo ""
     fi
 }
 
 stop_pcap_capture() {
-    if [[ -n "$PCAP_PID" ]] && ps -p $PCAP_PID > /dev/null; then
+    if [[ -n "$PCAP_PID" ]] && ps -p $PCAP_PID > /dev/null 2>&1; then
         print_header "Stopping PCAP Capture"
-        kill $PCAP_PID 2>/dev/null || true
+        sudo kill $PCAP_PID 2>/dev/null || kill $PCAP_PID 2>/dev/null || true
         sleep 2
         print_success "PCAP capture stopped"
     fi
@@ -228,7 +251,10 @@ run_test_scenario() {
     
     # Add loss parameter for non-Linux or when netem not available
     if [[ "$loss" -gt 0 ]] && [[ "$OSTYPE" != "linux-gnu"* ]]; then
-        server_cmd="$server_cmd --loss $(echo "scale=2; $loss/100" | bc)"
+        # Use Python to calculate decimal
+        loss_decimal=$(python3 -c "print($loss/100.0)")
+        server_cmd="$server_cmd --loss $loss_decimal"
+        echo "Using software loss simulation: $loss% ($loss_decimal)"
     fi
     
     echo "Command: $server_cmd"
@@ -237,7 +263,7 @@ run_test_scenario() {
     
     sleep 5
     
-    if ! ps -p $SERVER_PID > /dev/null; then
+    if ! ps -p $SERVER_PID > /dev/null 2>&1; then
         print_error "Server failed to start. Check $results_dir/server.log"
         return 1
     fi
@@ -262,11 +288,19 @@ run_test_scenario() {
     # Check connections
     local connected_clients=0
     for i in {1..4}; do
-        if grep -q -E "(Connected!|\[OK\]|Assigned ID|player_)" "$results_dir/client_$i.log" 2>/dev/null; then
-            print_success "Client $i connected"
-            ((connected_clients++))
+        if [[ -f "$results_dir/client_$i.log" ]]; then
+            if grep -q -E "(Connected!|\[OK\]|Assigned ID|player_)" "$results_dir/client_$i.log" 2>/dev/null; then
+                print_success "Client $i connected"
+                ((connected_clients++))
+            else
+                print_warning "Client $i connection unclear"
+                # Show last few lines for debugging
+                tail -3 "$results_dir/client_$i.log" 2>/dev/null | while read line; do
+                    echo "    Last: $line"
+                done
+            fi
         else
-            print_warning "Client $i connection unclear"
+            print_warning "Client $i log file not found"
         fi
     done
     
