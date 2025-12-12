@@ -203,29 +203,53 @@ def simple_cleanup():
     print("   ✅ Cleanup done")
 
 def run_scenario(name, loss, delay, jitter):
-    """Run a single test scenario - SIMPLIFIED"""
+    """Run a single test scenario - FIXED"""
     print(f"\n{'='*60}")
     print(f"STARTING: {name}")
     print(f"Loss: {loss}%, Delay: {delay}ms")
     print(f"{'='*60}")
     
-    # Simple cleanup
-    simple_cleanup()
+    # Simple cleanup - BUT keep existing CSV files for now
+    print("\n🧹 Cleaning up...")
+    try:
+        subprocess.run(['sudo', 'tc', 'qdisc', 'del', 'dev', 'enp0s3', 'root'], 
+                      stdout=subprocess.DEVNULL, 
+                      stderr=subprocess.DEVNULL,
+                      timeout=2)
+        subprocess.run(['sudo', 'iptables', '-F'],
+                      stdout=subprocess.DEVNULL,
+                      stderr=subprocess.DEVNULL,
+                      timeout=2)
+    except:
+        pass
     
-    # Create results directory
+    # Create results directory FIRST
     timestamp = int(time.time())
     log_dir = f"results/{name}_{timestamp}"
     os.makedirs(log_dir, exist_ok=True)
+    print(f"📁 Results will be saved to: {log_dir}")
     
-    # Apply network configuration (software simulation)
+    # Apply network configuration
     apply_netem_working(loss, delay, jitter)
+    
+    # Clean any OLD CSV files in current directory
+    print("🧹 Cleaning old CSV files...")
+    for f in os.listdir("."):
+        if f.endswith(".csv") and os.path.isfile(f):
+            try:
+                os.remove(f)
+                print(f"   Removed: {f}")
+            except:
+                pass
+    
+    time.sleep(2)  # Give time for cleanup
     
     # Start Server
     print(f"\n[1/3] Starting Server...")
     server_proc = subprocess.Popen([PYTHON_CMD, SERVER_SCRIPT],
                                    stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE)
-    time.sleep(3)
+    time.sleep(5)  # Increased to 5 seconds for server to fully start
     
     # Start 4 Clients
     print(f"[2/3] Starting 4 Clients...")
@@ -235,8 +259,8 @@ def run_scenario(name, loss, delay, jitter):
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.PIPE)
         clients.append(client_proc)
-        time.sleep(0.5)
-        print(f"   Client {i+1} started")
+        time.sleep(1)  # Increased to 1 second between clients
+        print(f"   Client {i+1} started (PID: {client_proc.pid})")
     
     # Run test
     print(f"\n[3/3] Running for {DURATION} seconds...")
@@ -247,19 +271,37 @@ def run_scenario(name, loss, delay, jitter):
             elapsed = int(time.time() - start_time)
             remaining = DURATION - elapsed
             print(f"\r⏱️  {elapsed:3d}s / {DURATION}s", end='', flush=True)
+            
+            # Check if CSV files are being created
+            if elapsed % 10 == 0:  # Every 10 seconds
+                csv_files = [f for f in os.listdir(".") if f.startswith("client_log_") and f.endswith(".csv")]
+                if csv_files:
+                    print(f"\n   Found {len(csv_files)} client log(s)")
+            
             time.sleep(0.5)
         print("\n   ✅ Test complete")
     except KeyboardInterrupt:
         print("\n\n⚠️  Test interrupted")
     
-    # Cleanup
+    # Let processes flush their logs
+    print("\n🔄 Letting processes flush logs...")
+    time.sleep(3)
+    
+    # Cleanup - Stop processes GRACEFULLY
     print(f"\n🧹 Stopping processes...")
     
+    # First, check what CSV files exist
+    print("📊 Checking for log files...")
+    all_files = os.listdir(".")
+    csv_files = [f for f in all_files if f.endswith(".csv")]
+    print(f"   Found {len(csv_files)} CSV files: {csv_files}")
+    
     # Stop clients
-    for client in clients:
+    for i, client in enumerate(clients):
         try:
+            print(f"   Stopping client {i+1}...")
             client.terminate()
-            client.wait(timeout=1)
+            client.wait(timeout=2)
         except:
             try:
                 client.kill()
@@ -268,34 +310,90 @@ def run_scenario(name, loss, delay, jitter):
     
     # Stop server
     try:
+        print("   Stopping server...")
         server_proc.terminate()
-        server_proc.wait(timeout=1)
+        server_proc.wait(timeout=2)
     except:
         try:
             server_proc.kill()
         except:
             pass
     
-    time.sleep(2)
+    time.sleep(3)  # Extra time for file writing
     
-    # Collect CSV files
+    # Collect CSV files - FIXED VERSION
     print(f"\n📂 Collecting results...")
     files_moved = 0
     
     for f in os.listdir("."):
-        if f.endswith(".csv") and os.path.getsize(f) > 100:
+        if f.endswith(".csv"):
             try:
-                shutil.move(f, os.path.join(log_dir, f))
-                files_moved += 1
-                print(f"   📄 {f}")
-            except:
-                pass
+                src = f
+                dst = os.path.join(log_dir, f)
+                
+                # Check file size
+                file_size = os.path.getsize(src)
+                if file_size > 100:  # At least 100 bytes
+                    shutil.move(src, dst)
+                    files_moved += 1
+                    print(f"   📄 {f} ({file_size} bytes)")
+                else:
+                    print(f"   ⚠️  Skipping {f} (too small: {file_size} bytes)")
+                    # Still move it for debugging
+                    shutil.move(src, dst)
+                    
+            except Exception as e:
+                print(f"   ❌ Error moving {f}: {e}")
+    
+    # Also copy the test configuration
+    try:
+        config_content = f"Test: {name}\nLoss: {loss}%\nDelay: {delay}ms\nJitter: {jitter}ms\nDuration: {DURATION}s\nTimestamp: {timestamp}"
+        with open(os.path.join(log_dir, "test_config.txt"), "w") as f:
+            f.write(config_content)
+        print(f"   📝 test_config.txt")
+        files_moved += 1
+    except:
+        pass
     
     print(f"\n✅ {name} completed!")
     print(f"   Files saved to: {log_dir}")
-    print(f"   CSV files: {files_moved}")
+    print(f"   Total files: {files_moved}")
+    
+    # Verify logs exist
+    verify_logs_exist(log_dir)
     
     return log_dir
+
+
+def verify_logs_exist(log_dir):
+    """Verify that log files were created"""
+    print("\n🔍 Verifying logs...")
+    
+    if not os.path.exists(log_dir):
+        print(f"   ❌ Directory doesn't exist: {log_dir}")
+        return
+    
+    files = os.listdir(log_dir)
+    if not files:
+        print(f"   ❌ No files in {log_dir}")
+        return
+    
+    print(f"   Found {len(files)} files:")
+    for f in files:
+        filepath = os.path.join(log_dir, f)
+        size = os.path.getsize(filepath)
+        print(f"      {f}: {size} bytes")
+        
+        # Check if file has content
+        if size < 100 and f.endswith(".csv"):
+            print(f"      ⚠️  WARNING: {f} is very small")
+            # Show first few lines for debugging
+            try:
+                with open(filepath, 'r') as fp:
+                    lines = fp.readlines()
+                    print(f"      First 3 lines: {lines[:3]}")
+            except:
+                pass
 
 def main():
     """Main function"""
