@@ -5,6 +5,7 @@ Analyze Grid Clash test results and calculate metrics
 Calculates latency, jitter, position error, and other metrics from test data
 """
 
+import argparse
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
