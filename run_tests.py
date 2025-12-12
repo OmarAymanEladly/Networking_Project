@@ -7,6 +7,7 @@ import shutil
 import platform
 import argparse
 import threading
+import netifaces  # You'll need to install: pip install netifaces
 
 # Configuration
 SERVER_SCRIPT = "server_optimized.py"
@@ -18,6 +19,24 @@ IS_LINUX = platform.system() == "Linux"
 
 # Global for tshark process
 tshark_process = None
+
+def get_interface_ip(interface="enp0s3"):
+    """Get the IP address of the specified interface"""
+    try:
+        # First try using netifaces
+        import netifaces
+        return netifaces.ifaddresses(interface)[netifaces.AF_INET][0]['addr']
+    except:
+        try:
+            # Fallback method using ip command
+            result = subprocess.run(['ip', 'addr', 'show', interface], 
+                                  capture_output=True, text=True)
+            for line in result.stdout.split('\n'):
+                if 'inet ' in line and '127.0.0.1' not in line:
+                    return line.strip().split()[1].split('/')[0]
+        except:
+            pass
+        return None
 
 def simple_cleanup():
     """Simple cleanup that won't kill our own process"""
@@ -46,6 +65,10 @@ def simple_cleanup():
     # Clean iptables rules
     try:
         subprocess.run(['sudo', 'iptables', '-F'],  # Flush all iptables rules
+                      stdout=subprocess.DEVNULL, 
+                      stderr=subprocess.DEVNULL,
+                      timeout=2)
+        subprocess.run(['sudo', 'iptables', '-t', 'nat', '-F'],  # Flush NAT rules
                       stdout=subprocess.DEVNULL, 
                       stderr=subprocess.DEVNULL,
                       timeout=2)
@@ -94,7 +117,7 @@ def start_wireshark_capture(test_name, interface="enp0s3"):
             text=True
         )
         print(f"   ✅ Capture started (PID: {tshark_process.pid})")
-        time.sleep(2)  # Give tshark time to start
+        time.sleep(3)  # Give tshark time to start
         return pcap_file
     except Exception as e:
         print(f"   ❌ Failed to start capture: {e}")
@@ -124,45 +147,52 @@ def stop_wireshark_capture():
         time.sleep(1)
 
 def analyze_capture(pcap_file, log_dir):
-    """Analyze pcap file and extract metrics"""
+    """Analyze pcap file and extract metrics - FIXED VERSION"""
     if not os.path.exists(pcap_file):
         print(f"   ❌ PCAP file not found: {pcap_file}")
         return
     
     print(f"\n📊 Analyzing capture: {os.path.basename(pcap_file)}")
+    print(f"   File size: {os.path.getsize(pcap_file)} bytes")
     
-    # 1. Count packets
+    # First, check what's in the pcap file
     try:
-        count_cmd = ["tshark", "-r", pcap_file, "-Y", "udp.port == 5555", "-z", "io,stat,0"]
-        result = subprocess.run(count_cmd, capture_output=True, text=True)
+        # Count UDP packets on port 5555
+        count_cmd = ["tshark", "-r", pcap_file, "-Y", "udp.port == 5555", "-T", "fields", "-e", "frame.number"]
+        result = subprocess.run(count_cmd, capture_output=True, text=True, timeout=10)
+        packets = [line for line in result.stdout.split('\n') if line.strip()]
+        print(f"   UDP packets on port 5555: {len(packets)}")
         
-        # Extract packet count from output
-        for line in result.stdout.split('\n'):
-            if "|" in line and "Number" not in line and "Duration" not in line:
-                parts = line.split('|')
-                if len(parts) > 2:
-                    packet_count = parts[2].strip()
-                    print(f"   Total packets: {packet_count}")
-                    
-                    # Save to stats file
-                    stats_file = os.path.join(log_dir, "capture_stats.txt")
-                    with open(stats_file, 'w') as f:
-                        f.write(f"Capture File: {os.path.basename(pcap_file)}\n")
-                        f.write(f"Total Packets: {packet_count}\n")
-                        f.write(f"Filter: udp port 5555\n")
-                        f.write(f"Interface: enp0s3\n")
+        if len(packets) == 0:
+            print(f"   ⚠️  NO UDP packets on port 5555 found!")
+            print(f"   Checking all UDP packets...")
+            all_udp_cmd = ["tshark", "-r", pcap_file, "-Y", "udp", "-T", "fields", "-e", "udp.srcport", "-e", "udp.dstport"]
+            result = subprocess.run(all_udp_cmd, capture_output=True, text=True, timeout=10)
+            udp_packets = [line for line in result.stdout.split('\n') if line.strip()]
+            print(f"   All UDP packets in capture: {len(udp_packets)}")
+            if udp_packets:
+                print(f"   First 5 UDP ports:")
+                for line in udp_packets[:5]:
+                    print(f"     {line}")
+            return
+        
     except Exception as e:
-        print(f"   ❌ Error counting packets: {e}")
+        print(f"   ❌ Error analyzing pcap: {e}")
+        return
     
-    # 2. Extract packet timing info to CSV
+    # Now extract packet timing info
     try:
         csv_file = os.path.join(log_dir, "packet_timing.csv")
+        print(f"\n   Extracting packet timing to: {csv_file}")
+        
+        # FIXED: Use proper field names and include client-server IPs
         analysis_cmd = [
             "tshark",
             "-r", pcap_file,
             "-T", "fields",
             "-E", "separator=,",
             "-E", "header=y",
+            "-e", "frame.number",
             "-e", "frame.time_epoch",
             "-e", "ip.src",
             "-e", "ip.dst",
@@ -173,18 +203,51 @@ def analyze_capture(pcap_file, log_dir):
             "-Y", "udp.port == 5555"
         ]
         
-        with open(csv_file, 'w') as f:
-            result = subprocess.run(analysis_cmd, stdout=f, stderr=subprocess.PIPE, text=True)
+        print(f"   Running: {' '.join(analysis_cmd)}")
         
-        if os.path.getsize(csv_file) > 100:
-            print(f"   ✅ Packet timing CSV: {csv_file}")
+        with open(csv_file, 'w') as f:
+            result = subprocess.run(analysis_cmd, stdout=f, stderr=subprocess.PIPE, text=True, timeout=30)
+        
+        if result.returncode != 0:
+            print(f"   ❌ tshark error: {result.stderr[:200]}")
+        
+        # Check the output
+        if os.path.exists(csv_file):
+            with open(csv_file, 'r') as f:
+                lines = f.readlines()
+            
+            if len(lines) > 1:
+                print(f"   ✅ Packet timing CSV created with {len(lines)-1} packets")
+                print(f"   Sample (first 2 lines):")
+                for i in range(min(3, len(lines))):
+                    print(f"     {lines[i].strip()}")
+                
+                # Also create a summary CSV
+                summary_file = os.path.join(log_dir, "packet_summary.csv")
+                summary_cmd = [
+                    "tshark",
+                    "-r", pcap_file,
+                    "-z", "io,stat,1",
+                    "-q",
+                    "-Y", "udp.port == 5555"
+                ]
+                
+                with open(summary_file, 'w') as f:
+                    subprocess.run(summary_cmd, stdout=f, stderr=subprocess.PIPE, text=True, timeout=10)
+                
+                print(f"   ✅ Packet summary saved to: {summary_file}")
+            else:
+                print(f"   ⚠️  CSV file created but only contains headers")
+                print(f"   File content: {lines}")
         else:
-            print(f"   ⚠️  Packet timing CSV empty or small")
+            print(f"   ❌ CSV file was not created")
             
     except Exception as e:
         print(f"   ❌ Error creating timing CSV: {e}")
+        import traceback
+        traceback.print_exc()
     
-    # 3. Move pcap to results directory
+    # Move pcap to results directory
     try:
         dest_pcap = os.path.join(log_dir, os.path.basename(pcap_file))
         shutil.move(pcap_file, dest_pcap)
@@ -249,6 +312,15 @@ def run_scenario(name, loss, delay, jitter):
     print(f"Loss: {loss}%, Delay: {delay}ms, Jitter: {jitter}ms")
     print(f"{'='*60}")
     
+    # Get the actual IP address of enp0s3
+    interface_ip = get_interface_ip("enp0s3")
+    if not interface_ip:
+        print(f"❌ Could not get IP address for enp0s3 interface!")
+        print(f"   Using 127.0.0.1 as fallback (traffic may not be captured on enp0s3)")
+        interface_ip = "127.0.0.1"
+    else:
+        print(f"📡 Using interface enp0s3 IP: {interface_ip}")
+    
     # Simple cleanup
     simple_cleanup()
     
@@ -263,23 +335,61 @@ def run_scenario(name, loss, delay, jitter):
     # START WIRESHARK CAPTURE ON enp0s3
     pcap_file = start_wireshark_capture(name, interface="enp0s3")
     
-    # Start Server
-    print(f"\n[1/3] Starting Server...")
-    server_proc = subprocess.Popen([PYTHON_CMD, SERVER_SCRIPT],
-                                   stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE)
+    # Start Server - bind to the interface IP
+    print(f"\n[1/3] Starting Server on {interface_ip}:5555...")
+    server_proc = subprocess.Popen(
+        [PYTHON_CMD, SERVER_SCRIPT, "--bind", interface_ip],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
     time.sleep(3)
     
-    # Start 4 Clients
-    print(f"[2/3] Starting 4 Clients...")
+    # Debug: Check if server is running
+    try:
+        check_cmd = ["pgrep", "-f", "server_optimized.py"]
+        result = subprocess.run(check_cmd, capture_output=True, text=True)
+        if result.stdout.strip():
+            print(f"   ✅ Server is running (PID: {result.stdout.strip()})")
+        else:
+            print(f"   ⚠️  Server may not be running")
+    except:
+        pass
+    
+    # Start 4 Clients - connect to the interface IP (NOT 127.0.0.1)
+    print(f"[2/3] Starting 4 Clients connecting to {interface_ip}:5555...")
     clients = []
     for i in range(4):
-        client_proc = subprocess.Popen([PYTHON_CMD, CLIENT_SCRIPT, "127.0.0.1", "--headless"],
-                                       stdout=subprocess.PIPE,
-                                       stderr=subprocess.PIPE)
+        client_proc = subprocess.Popen(
+            [PYTHON_CMD, CLIENT_SCRIPT, interface_ip, "--headless"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
         clients.append(client_proc)
         time.sleep(0.5)
-        print(f"   Client {i+1} started")
+        print(f"   Client {i+1} started (PID: {client_proc.pid})")
+    
+    # Verify traffic is being sent on enp0s3
+    print(f"\n[DEBUG] Checking for UDP traffic on enp0s3...")
+    try:
+        # Run tcpdump briefly to verify packets
+        check_cmd = ["sudo", "timeout", "5", "tcpdump", "-i", "enp0s3", "-c", "10", "udp port 5555"]
+        result = subprocess.run(check_cmd, capture_output=True, text=True)
+        if result.returncode == 0:
+            if "packets captured" in result.stderr:
+                packets_line = result.stderr.split('\n')[0]
+                packets = int(packets_line.split()[0])
+                print(f"   ✅ Captured {packets} UDP packets on enp0s3 port 5555")
+                if packets > 0:
+                    print(f"   Sample packets:")
+                    for line in result.stdout.split('\n')[:3]:
+                        if line.strip():
+                            print(f"     {line}")
+            else:
+                print(f"   ❌ No packets captured on enp0s3")
+        else:
+            print(f"   ⚠️  tcpdump exited with code {result.returncode}")
+    except Exception as e:
+        print(f"   ❌ tcpdump failed: {e}")
     
     # Run test
     print(f"\n[3/3] Running for {DURATION} seconds...")
@@ -333,7 +443,7 @@ def run_scenario(name, loss, delay, jitter):
     files_moved = 0
     
     for f in os.listdir("."):
-        if f.endswith(".csv") and os.path.getsize(f) > 100:
+        if f.endswith(".csv") and os.path.isfile(f):
             try:
                 shutil.move(f, os.path.join(log_dir, f))
                 files_moved += 1
@@ -343,7 +453,7 @@ def run_scenario(name, loss, delay, jitter):
     
     # Also copy the test configuration
     try:
-        config_content = f"Test: {name}\nLoss: {loss}%\nDelay: {delay}ms\nJitter: {jitter}ms\nDuration: {DURATION}s\nTimestamp: {timestamp}\nInterface: enp0s3"
+        config_content = f"Test: {name}\nLoss: {loss}%\nDelay: {delay}ms\nJitter: {jitter}ms\nDuration: {DURATION}s\nTimestamp: {timestamp}\nInterface: enp0s3\nInterface IP: {interface_ip}"
         with open(os.path.join(log_dir, "test_config.txt"), "w") as f:
             f.write(config_content)
         print(f"   📝 test_config.txt")
@@ -374,6 +484,18 @@ def main():
     print(f"Duration: {DURATION}s per test")
     print("Network interface: enp0s3")
     print("Wireshark capture enabled on enp0s3 interface")
+    
+    # Install netifaces if not available
+    try:
+        import netifaces
+    except ImportError:
+        print("\n⚠️  netifaces module not found. Installing...")
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "netifaces"])
+            import netifaces
+            print("✅ netifaces installed successfully")
+        except:
+            print("❌ Failed to install netifaces. Using fallback method.")
     
     # Check if tshark is available
     try:
