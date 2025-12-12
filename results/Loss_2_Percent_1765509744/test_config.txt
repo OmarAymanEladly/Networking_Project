@@ -1,7 +1,0 @@
-Test: Loss_2_Percent
-Loss: 2%
-Delay: 0ms
-Jitter: 0ms
-Duration: 40s
-Timestamp: 1765509744
-Interface: enp0s3

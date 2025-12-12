@@ -1,4 +1,0 @@
-Capture File: Loss_2_Percent_1765509746.pcap
-Total Packets: 
-Filter: udp port 5555
-Interface: enp0s3

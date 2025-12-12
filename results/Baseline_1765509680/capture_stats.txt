@@ -1,4 +1,0 @@
-Capture File: Baseline_1765509681.pcap
-Total Packets: 
-Filter: udp port 5555
-Interface: enp0s3

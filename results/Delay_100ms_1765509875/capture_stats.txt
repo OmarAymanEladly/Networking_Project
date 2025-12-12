@@ -1,4 +1,0 @@
-Capture File: Delay_100ms_1765509876.pcap
-Total Packets: 
-Filter: udp port 5555
-Interface: enp0s3

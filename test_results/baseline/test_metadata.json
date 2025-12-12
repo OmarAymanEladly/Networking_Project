@@ -1,0 +1,9 @@
+{
+  "test_name": "Baseline (no impairment)",
+  "timestamp": 1765517108.6894813,
+  "netem_command": null,
+  "duration": 60,
+  "clients": 4,
+  "interface": "enp0s3",
+  "server_port": 5555
+}

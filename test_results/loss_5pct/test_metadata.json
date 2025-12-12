@@ -1,0 +1,9 @@
+{
+  "test_name": "Loss 5% (WAN-like)",
+  "timestamp": 1765517288.1711922,
+  "netem_command": "sudo tc qdisc add dev enp0s3 root netem loss 5%",
+  "duration": 60,
+  "clients": 4,
+  "interface": "enp0s3",
+  "server_port": 5555
+}
