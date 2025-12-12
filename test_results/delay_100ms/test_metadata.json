@@ -1,9 +1,0 @@
-{
-  "test_name": "Delay 100ms (WAN delay)",
-  "timestamp": 1765517406.401881,
-  "netem_command": "sudo tc qdisc add dev enp0s3 root netem delay 100ms",
-  "duration": 90,
-  "clients": 4,
-  "interface": "enp0s3",
-  "server_port": 5555
-}
