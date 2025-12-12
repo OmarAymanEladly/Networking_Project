@@ -1,0 +1,59 @@
+<frozen importlib._bootstrap>:488: RuntimeWarning: Your system is avx2 capable but pygame was not built with support for it. The performance of some of your blits could be adversely affected. Consider enabling compile time detection with environment variables like PYGAME_DETECT_AVX2=1 if you are compiling without cross compilation.
+pygame 2.5.2 (SDL 2.30.0, Python 3.12.3)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+>> Connecting to 127.0.0.1:5555...
+[OK] Connected! Assigned ID: player_4
+[player_4] Running in HEADLESS BOT mode
+[CLIENT] Cell 19_0 acquired by player_4
+[CLIENT] Failed to acquire cell 19_0 (owned by None)
+[CLIENT] Failed to acquire cell 19_0 (owned by None)
+[CLIENT] Cell 18_1 acquired by player_4
+[CLIENT] Failed to acquire cell 18_1 (owned by None)
+[CLIENT] Cell 17_1 acquired by player_4
+[CLIENT] Failed to acquire cell 17_1 (owned by None)
+[CLIENT] Failed to acquire cell 17_1 (owned by None)
+[CLIENT] Cell 15_1 acquired by player_4
+[CLIENT] Failed to acquire cell 15_1 (owned by None)
+[CLIENT] Cell 16_3 acquired by player_4
+[CLIENT] Failed to acquire cell 16_3 (owned by None)
+[CLIENT] Cell 16_4 acquired by player_4
+[CLIENT] Failed to acquire cell 16_4 (owned by None)
+[CLIENT] Cell 16_4 acquired by player_4
+[CLIENT] Cell 15_7 acquired by player_4
+[CLIENT] Failed to acquire cell 15_7 (owned by None)
+[CLIENT] Cell 16_5 acquired by player_4
+[CLIENT] Failed to acquire cell 16_5 (owned by None)
+[CLIENT] Failed to acquire cell 16_5 (owned by None)
+[CLIENT] Cell 16_7 acquired by player_4
+[CLIENT] Failed to acquire cell 16_7 (owned by None)
+[CLIENT] Cell 18_7 acquired by player_4
+[CLIENT] Failed to acquire cell 18_7 (owned by None)
+[CLIENT] Cell 18_6 acquired by player_4
+[CLIENT] Failed to acquire cell 18_6 (owned by None)
+[CLIENT] Cell 18_5 acquired by player_4
+[CLIENT] Failed to acquire cell 18_5 (owned by None)
+[CLIENT] Failed to acquire cell 18_5 (owned by None)
+[CLIENT] Failed to acquire cell 18_5 (owned by None)
+[CLIENT] Cell 19_1 acquired by player_4
+[CLIENT] Failed to acquire cell 19_1 (owned by None)
+[CLIENT] Cell 19_2 acquired by player_4
+[CLIENT] Failed to acquire cell 19_2 (owned by None)
+[CLIENT] Failed to acquire cell 19_2 (owned by None)
+[CLIENT] Failed to acquire cell 19_2 (owned by None)
+[CLIENT] Failed to acquire cell 19_2 (owned by None)
+[CLIENT] Failed to acquire cell 19_2 (owned by None)
+[CLIENT] Cell 19_4 acquired by player_4
+[CLIENT] Failed to acquire cell 19_4 (owned by None)
+[CLIENT] Cell 19_4 acquired by player_4
+[CLIENT] Cell 18_4 acquired by player_4
+[CLIENT] Failed to acquire cell 18_4 (owned by None)
+[CLIENT] Cell 17_5 acquired by player_4
+[CLIENT] Failed to acquire cell 17_5 (owned by None)
+[CLIENT] Failed to acquire cell 17_5 (owned by None)
+[CLIENT] Cell 17_5 acquired by player_4
+Traceback (most recent call last):
+  File "/home/vboxuser/Networking_Project/client.py", line 543, in <module>
+    GridClashUDPClient(server_host=args.host).run()
+  File "/home/vboxuser/Networking_Project/client.py", line 512, in run
+    for seq, req in self.pending_requests.items():
+RuntimeError: dictionary changed size during iteration
