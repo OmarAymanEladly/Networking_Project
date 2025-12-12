@@ -23,17 +23,27 @@ def simple_cleanup():
     """Simple cleanup that won't kill our own process"""
     print("\n🧹 Simple cleanup...")
     
-    # Only clean netem, not processes
+    # Clean netem on enp0s3 (CORRECT INTERFACE)
+    try:
+        subprocess.run(['sudo', 'tc', 'qdisc', 'del', 'dev', 'enp0s3', 'root'], 
+                      stdout=subprocess.DEVNULL, 
+                      stderr=subprocess.DEVNULL,
+                      timeout=2)
+        print("   Cleaned netem rules from enp0s3")
+    except:
+        pass
+    
+    # Also clean loopback just in case
     try:
         subprocess.run(['sudo', 'tc', 'qdisc', 'del', 'dev', 'lo', 'root'], 
                       stdout=subprocess.DEVNULL, 
                       stderr=subprocess.DEVNULL,
                       timeout=2)
-        print("   Cleaned netem rules")
+        print("   Cleaned netem rules from lo")
     except:
         pass
     
-    # FIXED: Also clean iptables rules
+    # Clean iptables rules
     try:
         subprocess.run(['sudo', 'iptables', '-F'],  # Flush all iptables rules
                       stdout=subprocess.DEVNULL, 
@@ -54,8 +64,8 @@ def simple_cleanup():
     time.sleep(1)
     print("   ✅ Cleanup done")
 
-def start_wireshark_capture(test_name, interface="lo"):
-    """Start tshark capture in background"""
+def start_wireshark_capture(test_name, interface="enp0s3"):
+    """Start tshark capture in background on enp0s3"""
     global tshark_process
     
     # Create captures directory
@@ -140,7 +150,7 @@ def analyze_capture(pcap_file, log_dir):
                         f.write(f"Capture File: {os.path.basename(pcap_file)}\n")
                         f.write(f"Total Packets: {packet_count}\n")
                         f.write(f"Filter: udp port 5555\n")
-                        f.write(f"Interface: lo\n")
+                        f.write(f"Interface: enp0s3\n")
     except Exception as e:
         print(f"   ❌ Error counting packets: {e}")
     
@@ -182,27 +192,48 @@ def analyze_capture(pcap_file, log_dir):
     except Exception as e:
         print(f"   ❌ Error moving PCAP: {e}")
 
-def apply_netem_working(interface, loss=0, delay=0, jitter=0):
-    """Netem that actually works"""
-    # ALWAYS use these exact commands that work:
+def apply_netem_working(loss=0, delay=0, jitter=0):
+    """Apply netem to enp0s3 - ALL TESTS USE enp0s3"""
+    interface = "enp0s3"
+    
+    print(f"📡 Applying netem to {interface}")
+    
+    # Clean FIRST
+    try:
+        subprocess.run(f"sudo tc qdisc del dev {interface} root", 
+                      shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except:
+        pass
+    
+    time.sleep(1)
     
     if loss > 0:
         # Use iptables for loss (REAL network layer)
         prob = loss / 100.0
-        # FIXED: Apply loss to BOTH directions for UDP traffic on port 5555
+        # Apply loss to BOTH directions for UDP traffic on port 5555
         cmd1 = f"sudo iptables -A INPUT -p udp --dport 5555 -m statistic --mode random --probability {prob} -j DROP"
         cmd2 = f"sudo iptables -A OUTPUT -p udp --sport 5555 -m statistic --mode random --probability {prob} -j DROP"
         subprocess.run(cmd1, shell=True)
         subprocess.run(cmd2, shell=True)
-        print(f"✅ REAL packet loss: {loss}% via iptables (both directions)")
+        print(f"✅ Applied {loss}% packet loss via iptables (both directions)")
     
     if delay > 0:
-        # Use tc for delay (REAL network layer)
-        # FIXED: Apply delay to BOTH directions by adding it to ALL loopback traffic
-        cmd = f"sudo tc qdisc add dev {interface} root netem delay {delay}ms"
-        result = subprocess.run(cmd, shell=True, capture_output=True)
+        # Use tc for delay (REAL network layer) on enp0s3
+        if jitter > 0:
+            cmd = f"sudo tc qdisc add dev {interface} root netem delay {delay}ms {jitter}ms"
+        else:
+            cmd = f"sudo tc qdisc add dev {interface} root netem delay {delay}ms"
+        
+        print(f"Running: {cmd}")
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        
         if result.returncode == 0:
-            print(f"✅ REAL delay: {delay}ms via tc")
+            print(f"✅ REAL delay: {delay}ms via tc on {interface}")
+            
+            # Verify
+            check_cmd = f"sudo tc qdisc show dev {interface}"
+            check_result = subprocess.run(check_cmd, shell=True, capture_output=True, text=True)
+            print(f"   Verification: {check_result.stdout.strip()}")
         else:
             print(f"❌ tc failed: {result.stderr}")
             # Fallback: socket options for delay
@@ -212,10 +243,10 @@ def apply_netem_working(interface, loss=0, delay=0, jitter=0):
     return True
 
 def run_scenario(name, loss, delay, jitter):
-    """Run a single test scenario - SIMPLIFIED"""
+    """Run a single test scenario - ALL TESTS USE enp0s3"""
     print(f"\n{'='*60}")
     print(f"STARTING: {name}")
-    print(f"Loss: {loss}%, Delay: {delay}ms")
+    print(f"Loss: {loss}%, Delay: {delay}ms, Jitter: {jitter}ms")
     print(f"{'='*60}")
     
     # Simple cleanup
@@ -226,11 +257,11 @@ def run_scenario(name, loss, delay, jitter):
     log_dir = f"results/{name}_{timestamp}"
     os.makedirs(log_dir, exist_ok=True)
     
-    # Apply network configuration (software simulation)
-    apply_netem_working('lo', loss, delay, jitter)
+    # Apply network configuration to enp0s3
+    apply_netem_working(loss, delay, jitter)
     
-    # START WIRESHARK CAPTURE
-    pcap_file = start_wireshark_capture(name, interface="lo")
+    # START WIRESHARK CAPTURE ON enp0s3
+    pcap_file = start_wireshark_capture(name, interface="enp0s3")
     
     # Start Server
     print(f"\n[1/3] Starting Server...")
@@ -310,9 +341,19 @@ def run_scenario(name, loss, delay, jitter):
             except:
                 pass
     
+    # Also copy the test configuration
+    try:
+        config_content = f"Test: {name}\nLoss: {loss}%\nDelay: {delay}ms\nJitter: {jitter}ms\nDuration: {DURATION}s\nTimestamp: {timestamp}\nInterface: enp0s3"
+        with open(os.path.join(log_dir, "test_config.txt"), "w") as f:
+            f.write(config_content)
+        print(f"   📝 test_config.txt")
+        files_moved += 1
+    except:
+        pass
+    
     print(f"\n✅ {name} completed!")
     print(f"   Files saved to: {log_dir}")
-    print(f"   CSV files: {files_moved}")
+    print(f"   Total files: {files_moved}")
     
     return log_dir
 
@@ -328,11 +369,11 @@ def main():
     DURATION = args.duration
     
     print("\n" + "="*60)
-    print("GRID CLASH TESTS - WITH WIRESHARK CAPTURE")
+    print("GRID CLASH TESTS - ALL ON enp0s3 WITH WIRESHARK")
     print("="*60)
     print(f"Duration: {DURATION}s per test")
-    print("Using software network simulation")
-    print("Wireshark capture enabled on loopback interface")
+    print("Network interface: enp0s3")
+    print("Wireshark capture enabled on enp0s3 interface")
     
     # Check if tshark is available
     try:
@@ -381,6 +422,9 @@ def main():
         print(f"\nRun analysis: python analyze_result.py")
         print(f"Check results in: results/")
         print(f"Check PCAP files in: captures/")
+        print(f"\nSummary of all tests run:")
+        for result in results:
+            print(f"  - {os.path.basename(result)}")
     
     print("\n" + "="*60)
 
