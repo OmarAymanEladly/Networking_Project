@@ -82,83 +82,122 @@ def setup_netem():
     return 'lo'
 
 def apply_netem(interface, loss=0, delay=0, jitter=0):
-    """Apply netem configuration with validation"""
+    """Apply netem for tc version 6.1.0+"""
     if not interface:
         return False
     
+    print(f"\n🔧 Applying netem (tc 6.1.0 syntax):")
+    print(f"   Interface: {interface}")
+    print(f"   Loss: {loss}%, Delay: {delay}ms, Jitter: {jitter}ms")
+    
     # If no impairment needed
     if loss == 0 and delay == 0:
-        print("✅ Baseline - no network impairment needed")
+        print("   ✅ Baseline - no network impairment needed")
         return True
     
-    print(f"\n🔧 Applying netem configuration:")
-    print(f"   Interface: {interface}")
-    print(f"   Loss: {loss}%")
-    print(f"   Delay: {delay}ms")
-    print(f"   Jitter: {jitter}ms")
-    
-    # Try multiple methods
-    methods = [
-        ("Standard netem add", ['sudo', 'tc', 'qdisc', 'add', 'dev', interface, 'root', 'netem']),
-        ("Netem replace", ['sudo', 'tc', 'qdisc', 'replace', 'dev', interface, 'root', 'netem']),
-        ("Netem with handle", ['sudo', 'tc', 'qdisc', 'add', 'dev', interface, 'root', 'handle', '1:', 'netem'])
+    # Clean up first
+    cleanup_cmds = [
+        f"sudo tc qdisc del dev {interface} root 2>/dev/null",
+        f"sudo tc qdisc del dev {interface} ingress 2>/dev/null",
     ]
     
-    for method_name, base_cmd in methods:
-        print(f"\n   Trying {method_name}...")
+    for cmd in cleanup_cmds:
+        subprocess.run(cmd, shell=True, timeout=3)
+    
+    time.sleep(2)
+    
+    # Build command for tc 6.1.0
+    base_cmd = f"sudo tc qdisc add dev {interface} root netem"
+    
+    # Add limit parameter (REQUIRED for tc 6.1.0+)
+    cmd = f"{base_cmd} limit 1000"
+    
+    # Add impairments
+    if loss > 0:
+        cmd += f" loss {loss}%"
+    if delay > 0:
+        if jitter > 0:
+            cmd += f" delay {delay}ms {jitter}ms distribution normal"
+        else:
+            cmd += f" delay {delay}ms"
+    
+    print(f"   Command: {cmd}")
+    
+    try:
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
         
-        # Remove existing first
-        subprocess.run(['sudo', 'tc', 'qdisc', 'del', 'dev', interface, 'root', '2>/dev/null'],
-                      shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        time.sleep(1)
-        
-        # Build command with parameters
-        cmd = base_cmd.copy()
-        if loss > 0:
-            cmd.extend(['loss', f'{loss}%'])
-        if delay > 0:
-            if jitter > 0:
-                cmd.extend(['delay', f'{delay}ms', f'{jitter}ms'])
-            else:
-                cmd.extend(['delay', f'{delay}ms'])
-        
-        print(f"   Command: {' '.join(cmd)}")
-        
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            print("   ✅ Netem applied successfully")
             
-            if result.returncode == 0:
-                print(f"   ✅ {method_name} succeeded")
-                
-                # Verify configuration
-                verify = subprocess.run(['sudo', 'tc', 'qdisc', 'show', 'dev', interface],
-                                      capture_output=True, text=True)
-                config = verify.stdout.strip()
-                print(f"   Current config: {config}")
-                
-                # Validate
-                if loss > 0 and 'loss' not in config.lower():
-                    print(f"   ⚠️  Warning: Loss not in config")
-                if delay > 0 and 'delay' not in config.lower():
-                    print(f"   ⚠️  Warning: Delay not in config")
-                
-                return True
-            else:
-                print(f"   ❌ Failed: {result.stderr[:100]}")
-                
-        except Exception as e:
-            print(f"   ❌ Error: {e}")
+            # Verify
+            verify_cmd = f"sudo tc qdisc show dev {interface}"
+            verify = subprocess.run(verify_cmd, shell=True, capture_output=True, text=True)
+            print(f"   Current config: {verify.stdout.strip()}")
+            return True
+        else:
+            print(f"   ❌ Failed: {result.stderr[:100]}")
+            
+            # Try alternative syntax
+            return try_alternative_syntax(interface, loss, delay, jitter)
+            
+    except Exception as e:
+        print(f"   ❌ Error: {e}")
+        return try_alternative_syntax(interface, loss, delay, jitter)
+
+def try_alternative_syntax(interface, loss, delay, jitter):
+    """Try alternative syntaxes for tc 6.1.0"""
+    print("\n   Trying alternative syntaxes...")
     
-    print(f"\n   ⚠️  All netem methods failed")
-    print(f"   Will continue with software simulation")
+    # Alternative 1: Without 'distribution normal'
+    base_cmd = f"sudo tc qdisc add dev {interface} root netem limit 1000"
     
-    # Set environment variables for software simulation
+    if loss > 0 and delay > 0:
+        if jitter > 0:
+            cmd = f"{base_cmd} delay {delay}ms {jitter}ms loss {loss}%"
+        else:
+            cmd = f"{base_cmd} delay {delay}ms loss {loss}%"
+    elif loss > 0:
+        cmd = f"{base_cmd} loss {loss}%"
+    elif delay > 0:
+        if jitter > 0:
+            cmd = f"{base_cmd} delay {delay}ms {jitter}ms"
+        else:
+            cmd = f"{base_cmd} delay {delay}ms"
+    
+    print(f"   Alternative command: {cmd}")
+    
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=5)
+    
+    if result.returncode == 0:
+        print("   ✅ Alternative syntax worked")
+        return True
+    
+    # Alternative 2: Use handle parameter
+    print("\n   Trying with handle parameter...")
+    cmd = f"sudo tc qdisc add dev {interface} root handle 1: netem limit 1000"
+    
+    if loss > 0:
+        cmd += f" loss {loss}%"
+    if delay > 0:
+        if jitter > 0:
+            cmd += f" delay {delay}ms {jitter}ms"
+        else:
+            cmd += f" delay {delay}ms"
+    
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=5)
+    
+    if result.returncode == 0:
+        print("   ✅ Handle syntax worked")
+        return True
+    
+    # If all fails, use software simulation
+    print("\n   ⚠️  All netem methods failed. Using software simulation.")
     os.environ['SIMULATE_NETWORK'] = '1'
     os.environ['SIMULATE_LOSS'] = str(loss)
     os.environ['SIMULATE_DELAY'] = str(delay)
     os.environ['SIMULATE_JITTER'] = str(jitter)
     
-    return True  # Return True for software simulation
+    return True
 
 def remove_netem(interface):
     """Remove netem configuration"""
