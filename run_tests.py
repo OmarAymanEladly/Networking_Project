@@ -19,14 +19,95 @@ DURATION = 60  # PDF requires 60s for baseline test
 IS_LINUX = platform.system() == "Linux"
 IS_WINDOWS = platform.system() == "Windows"
 
-# Global for tshark process
-tshark_process = None
+class PCAPManager:
+    """Manage PCAP capture processes"""
+    def __init__(self):
+        self.processes = []
+        self.pcap_files = []
+        
+    def start_capture(self, test_name, interface="lo", port=5555):
+        """Start tshark capture for specific test"""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        pcap_file = f"captures/{test_name}_{timestamp}.pcap"
+        
+        # Ensure captures directory exists
+        os.makedirs("captures", exist_ok=True)
+        
+        print(f"📡 Starting PCAP capture: {os.path.basename(pcap_file)}")
+        
+        try:
+            if IS_WINDOWS:
+                # On Windows, try to find the right interface
+                cmd = ["tshark", "-i", interface, "-f", f"udp port {port}", 
+                      "-w", pcap_file, "-q"]
+            else:
+                # Linux/Mac - use sudo for tshark
+                cmd = ["sudo", "tshark", "-i", interface, "-f", f"udp port {port}", 
+                      "-w", pcap_file, "-q"]
+            
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            
+            self.processes.append(process)
+            self.pcap_files.append(pcap_file)
+            
+            # Wait a moment for tshark to start
+            time.sleep(2)
+            
+            # Verify it's running
+            if process.poll() is None:
+                print(f"   ✅ PCAP capture running (PID: {process.pid})")
+                return pcap_file
+            else:
+                stdout, stderr = process.communicate()
+                print(f"   ❌ PCAP failed to start: {stderr}")
+                return None
+                
+        except FileNotFoundError:
+            print(f"   ⚠️  tshark not found. Install Wireshark/tshark first.")
+            print(f"   On Ubuntu: sudo apt-get install tshark")
+            print(f"   On Windows: Install Wireshark (includes tshark)")
+            return None
+        except Exception as e:
+            print(f"   ❌ PCAP error: {e}")
+            return None
+    
+    def stop_all(self):
+        """Stop all PCAP captures"""
+        for process in self.processes:
+            if process and process.poll() is None:
+                try:
+                    if IS_WINDOWS:
+                        process.send_signal(signal.CTRL_C_EVENT)
+                    else:
+                        process.send_signal(signal.SIGINT)
+                    
+                    # Wait for graceful shutdown
+                    try:
+                        process.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        process.terminate()
+                        process.wait(timeout=1)
+                except:
+                    pass
+        
+        self.processes = []
+        time.sleep(1)
+        print("   ✅ All PCAP captures stopped")
+    
+    def get_pcap_files(self):
+        """Get list of captured PCAP files"""
+        return [f for f in self.pcap_files if os.path.exists(f)]
 
 def simple_cleanup():
     """Clean up any running processes and files"""
     print("\n🧹 Cleaning up...")
     
-    # Kill processes
+    # Kill Python processes
     try:
         if IS_WINDOWS:
             subprocess.run(['taskkill', '/F', '/IM', 'python.exe'], 
@@ -58,79 +139,8 @@ def simple_cleanup():
         except:
             pass
     
-    # Remove temporary files
-    for f in os.listdir("."):
-        if f.endswith((".csv", ".log", ".pcap", ".json")) and os.path.isfile(f):
-            try:
-                os.remove(f)
-            except:
-                pass
-    
     time.sleep(2)
     print("   ✅ Cleanup complete")
-
-def start_wireshark_capture(test_name):
-    """Start tshark capture in background - PDF requires at least two pcap traces per test"""
-    global tshark_process
-    
-    # Create captures directory
-    os.makedirs("captures", exist_ok=True)
-    
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    pcap_file = f"captures/{test_name}_{timestamp}.pcap"
-    
-    print(f"\n📡 Starting network capture...")
-    print(f"   Saving to: {pcap_file}")
-    
-    try:
-        if IS_WINDOWS:
-            # Windows - use Clumsy for network impairment
-            print("   ⚠️  On Windows, use Clumsy for network simulation")
-            tshark_process = subprocess.Popen(
-                ["tshark", "-i", "1", "-f", "udp port 5555", 
-                 "-w", pcap_file, "-q"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-        else:
-            # Linux/Mac - use loopback
-            tshark_process = subprocess.Popen(
-                ["sudo", "tshark", "-i", "lo", "-f", "udp port 5555", 
-                 "-w", pcap_file, "-q"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-        time.sleep(3)  # Give tshark time to start
-        return pcap_file
-    except Exception as e:
-        print(f"   ⚠️  Could not start capture: {e}")
-        print("   Continuing without packet capture...")
-        return None
-
-def stop_wireshark_capture():
-    """Stop tshark capture"""
-    global tshark_process
-    
-    if tshark_process and tshark_process.poll() is None:
-        try:
-            if IS_WINDOWS:
-                tshark_process.send_signal(signal.CTRL_C_EVENT)
-            else:
-                tshark_process.send_signal(signal.SIGINT)
-            tshark_process.wait(timeout=5)
-        except:
-            try:
-                tshark_process.terminate()
-                tshark_process.wait(timeout=2)
-            except:
-                try:
-                    tshark_process.kill()
-                except:
-                    pass
-        tshark_process = None
-        time.sleep(2)
 
 def apply_network_conditions(scenario_name):
     """Apply network conditions using tc netem (Linux only) according to PDF specifications"""
@@ -166,9 +176,14 @@ def apply_network_conditions(scenario_name):
                 result = subprocess.run(cmd, capture_output=True, text=True)
                 if result.returncode == 0:
                     print(f"   ✅ Network conditions applied: {scenario_name}")
+                    
                     # Verify the rules
-                    print("   Current network rules:")
-                    subprocess.run(['sudo', 'tc', 'qdisc', 'show', 'dev', 'lo'])
+                    print("   📋 Current network rules:")
+                    verify_result = subprocess.run(['sudo', 'tc', 'qdisc', 'show', 'dev', 'lo'], 
+                                                  capture_output=True, text=True)
+                    if verify_result.returncode == 0:
+                        print(f"      {verify_result.stdout.strip()}")
+                    
                     return True
                 else:
                     print(f"   ❌ Failed to apply network conditions")
@@ -184,8 +199,8 @@ def apply_network_conditions(scenario_name):
         print(f"   ⚠️  Unknown scenario: {scenario_name}")
         return True
 
-def run_single_scenario(scenario_name, loss=0, delay=0, jitter=0, run_number=1):
-    """Run a single test scenario - PDF requires 5 repetitions"""
+def run_single_scenario(scenario_name, loss=0, delay=0, jitter=0, run_number=1, pcap_manager=None):
+    """Run a single test scenario with PCAP capture"""
     print(f"\n{'='*60}")
     print(f"🏁 TEST RUN {run_number}: {scenario_name.upper()}")
     print(f"{'='*60}")
@@ -203,24 +218,24 @@ def run_single_scenario(scenario_name, loss=0, delay=0, jitter=0, run_number=1):
         if not apply_network_conditions(scenario_name):
             print("   ⚠️  Failed to apply network conditions, continuing anyway...")
     
-    # Start Wireshark capture - PDF requires pcap traces
-    pcap_file = start_wireshark_capture(f"{scenario_name}_run{run_number}")
-    
-    # Start Server with appropriate parameters
-    print(f"\n[1/3] 🚀 Starting Server...")
-    server_log_path = f"{results_dir}/server.log"
+    # Start PCAP capture (PDF requires pcap traces)
+    pcap_file = None
+    if pcap_manager:
+        pcap_file = pcap_manager.start_capture(f"{scenario_name}_run{run_number}")
     
     # Determine test duration based on scenario
-    test_duration = 60  # Default 60 seconds (PDF baseline requirement)
-    if scenario_name == "baseline":
-        test_duration = 60  # PDF: "1s interval, 60s test"
+    test_duration = 60 if scenario_name == "baseline" else 40
+    
+    # Start Server
+    print(f"\n[1/3] 🚀 Starting Server...")
+    server_log_path = f"{results_dir}/server.log"
     
     try:
         server_cmd = [PYTHON_CMD, "-u", SERVER_SCRIPT]
         
-        # Add network simulation parameters (software-based fallback)
-        if loss > 0:
-            server_cmd.extend(["--loss", str(loss)])
+        # Add network simulation parameters (software-based fallback for Windows)
+        if loss > 0 and not IS_LINUX:
+            server_cmd.extend(["--loss", str(loss/100)])  # Convert percentage to decimal
         
         server_proc = subprocess.Popen(
             server_cmd,
@@ -228,15 +243,10 @@ def run_single_scenario(scenario_name, loss=0, delay=0, jitter=0, run_number=1):
             stderr=subprocess.STDOUT,
             bufsize=0
         )
-        time.sleep(5)  # Give server time to fully initialize
+        time.sleep(5)  # Give server time to initialize
         
-        # Check if server is running
         if server_proc.poll() is not None:
             print("   ❌ Server failed to start!")
-            if os.path.exists(server_log_path):
-                with open(server_log_path, 'r') as f:
-                    errors = f.read()
-                    print(f"   Server errors: {errors[:500]}")
             return None
         
         print(f"   ✅ Server started (PID: {server_proc.pid})")
@@ -245,10 +255,11 @@ def run_single_scenario(scenario_name, loss=0, delay=0, jitter=0, run_number=1):
         time.sleep(2)
         if IS_WINDOWS:
             netstat_result = subprocess.run(['netstat', '-an'], capture_output=True, text=True)
-            listening = ":5555" in netstat_result.stdout and "UDP" in netstat_result.stdout
-        else:
-            netstat_result = subprocess.run(['sudo', 'netstat', '-tulpn'], capture_output=True, text=True)
             listening = ":5555" in netstat_result.stdout
+        else:
+            netstat_result = subprocess.run(['sudo', 'lsof', '-i', ':5555'], 
+                                          capture_output=True, text=True)
+            listening = netstat_result.returncode == 0
         
         if listening:
             print("   ✅ Server listening on port 5555")
@@ -259,17 +270,17 @@ def run_single_scenario(scenario_name, loss=0, delay=0, jitter=0, run_number=1):
         print(f"   ❌ Failed to start server: {e}")
         return None
     
-    # Start 4 Clients (PDF requirement: "at least 4 concurrent clients")
+    # Start 4 Clients
     print(f"\n[2/3] 👥 Starting 4 Clients...")
-    clients = []
     client_procs = []
+    client_log_paths = []
     
     for i in range(4):
         client_id = i + 1
         client_log_path = f"{results_dir}/client_{client_id}.log"
+        client_log_paths.append(client_log_path)
         
         try:
-            # Start client with headless mode and explicit port
             client_proc = subprocess.Popen(
                 [PYTHON_CMD, "-u", CLIENT_SCRIPT, "127.0.0.1", "--headless"],
                 stdout=open(client_log_path, "w"),
@@ -277,84 +288,53 @@ def run_single_scenario(scenario_name, loss=0, delay=0, jitter=0, run_number=1):
                 bufsize=0
             )
             client_procs.append(client_proc)
-            clients.append(f"player_{client_id}")
             
             print(f"   Client {client_id} started (PID: {client_proc.pid})")
-            time.sleep(2)  # Stagger client connections (important!)
+            time.sleep(1.5)  # Stagger client connections
             
         except Exception as e:
             print(f"   ❌ Failed to start client {client_id}: {e}")
     
-    # Wait for clients to connect
-    print(f"\n   Waiting for connections to establish...")
-    time.sleep(10)  # Longer wait for all clients to connect properly
+    # Wait for connections
+    print(f"\n   Waiting for connections...")
+    time.sleep(8)
     
-    # Check connection status
+    # Check connections
     connected_clients = 0
-    for i in range(4):
-        client_id = i + 1
-        client_log_path = f"{results_dir}/client_{client_id}.log"
-        
-        if os.path.exists(client_log_path) and os.path.getsize(client_log_path) > 50:
+    for i, log_path in enumerate(client_log_paths):
+        if os.path.exists(log_path):
             try:
-                with open(client_log_path, 'r') as f:
+                with open(log_path, 'r') as f:
                     content = f.read()
-                    
-                    # Check for connection success indicators
-                    success_indicators = ["Connected!", "[OK]", "Assigned ID", "player_"]
-                    if any(indicator in content for indicator in success_indicators):
-                        print(f"   ✅ Client {client_id} connected successfully")
+                    if any(indicator in content for indicator in 
+                          ["Connected!", "[OK]", "Assigned ID", "player_"]):
                         connected_clients += 1
-                    elif "ERROR" in content or "failed" in content.lower():
-                        print(f"   ❌ Client {client_id} failed")
+                        print(f"   ✅ Client {i+1} connected")
                     else:
-                        # Check last few lines
-                        lines = content.strip().split('\n')[-5:]
-                        if any("player_" in line for line in lines):
-                            print(f"   ✅ Client {client_id} appears connected")
-                            connected_clients += 1
-                        else:
-                            print(f"   ⚠️  Client {client_id} no clear connection indicator")
-            except Exception as e:
-                print(f"   ❌ Error reading client {client_id} log: {e}")
-        else:
-            print(f"   ⚠️  Client {client_id} log missing or empty")
+                        print(f"   ⚠️  Client {i+1} connection status unclear")
+            except:
+                pass
     
-    if connected_clients < 4:
-        print(f"   ⚠️  Only {connected_clients}/4 clients connected")
-        if connected_clients == 0:
-            # Check server logs for clues
-            if os.path.exists(server_log_path):
-                with open(server_log_path, 'r') as f:
-                    server_log = f.read()[-1000:]
-                    print(f"   Last server output:\n{server_log}")
+    print(f"   📊 {connected_clients}/4 clients connected")
     
-    # Run test for specified duration
+    # Run test
     print(f"\n[3/3] ⏱️  Running test for {test_duration} seconds...")
-    print(f"   Scenario: {scenario_name}")
-    print(f"   Network: Loss={loss}%, Delay={delay}ms, Jitter={jitter}ms")
-    
     start_time = time.time()
-    last_update = start_time
     
     try:
-        while time.time() - start_time < test_duration:
-            current_time = time.time()
-            elapsed = int(current_time - start_time)
+        for second in range(test_duration):
+            elapsed = second + 1
             remaining = test_duration - elapsed
             
-            # Print progress every 10 seconds
-            if current_time - last_update >= 10:
+            if second % 10 == 0:
                 print(f"   Progress: {elapsed:3d}s / {test_duration}s ({remaining:3d}s remaining)")
-                last_update = current_time
             
-            print(f"\r   Time: {elapsed:3d}s / {test_duration}s", end='', flush=True)
             time.sleep(1)
         
-        print(f"\n   ✅ Test duration completed")
+        print(f"\n   ✅ Test completed")
         
     except KeyboardInterrupt:
-        print(f"\n\n⚠️  Test interrupted by user")
+        print(f"\n\n⚠️  Test interrupted")
         test_duration = int(time.time() - start_time)
     
     # Stop processes
@@ -365,11 +345,9 @@ def run_single_scenario(scenario_name, loss=0, delay=0, jitter=0, run_number=1):
         try:
             client_proc.terminate()
             client_proc.wait(timeout=2)
-            print(f"   Client {i+1} stopped")
         except:
             try:
                 client_proc.kill()
-                print(f"   Client {i+1} killed")
             except:
                 pass
     
@@ -377,23 +355,18 @@ def run_single_scenario(scenario_name, loss=0, delay=0, jitter=0, run_number=1):
     try:
         server_proc.terminate()
         server_proc.wait(timeout=3)
-        print("   Server stopped")
     except:
         try:
             server_proc.kill()
-            print("   Server killed")
         except:
             pass
     
-    time.sleep(3)
-    
-    # Stop Wireshark capture
-    stop_wireshark_capture()
+    time.sleep(2)
     
     # Collect results
-    print(f"\n📂 Collecting test results...")
+    print(f"\n📂 Collecting results...")
     
-    # Move CSV files (generated by client.py and server_optimized.py)
+    # Collect CSV files
     csv_files = []
     for f in os.listdir("."):
         if f.endswith(".csv") and os.path.isfile(f):
@@ -405,16 +378,23 @@ def run_single_scenario(scenario_name, loss=0, delay=0, jitter=0, run_number=1):
             except Exception as e:
                 print(f"   ⚠️  Could not move {f}: {e}")
     
-    # Move pcap file
+    # Move PCAP file if captured
     if pcap_file and os.path.exists(pcap_file):
         try:
-            dest = os.path.join(results_dir, os.path.basename(pcap_file))
-            shutil.move(pcap_file, dest)
-            print(f"   📄 {os.path.basename(pcap_file)}")
-        except:
-            pass
+            pcap_dest = os.path.join(results_dir, os.path.basename(pcap_file))
+            shutil.move(pcap_file, pcap_dest)
+            print(f"   📦 PCAP: {os.path.basename(pcap_file)}")
+        except Exception as e:
+            print(f"   ⚠️  Could not move PCAP: {e}")
+            # Copy instead if move fails
+            try:
+                pcap_dest = os.path.join(results_dir, os.path.basename(pcap_file))
+                shutil.copy(pcap_file, pcap_dest)
+                print(f"   📦 PCAP (copied): {os.path.basename(pcap_file)}")
+            except:
+                pass
     
-    # Collect log files
+    # Move log files
     log_files = []
     for f in os.listdir("."):
         if f.endswith(".log") and os.path.isfile(f):
@@ -425,146 +405,189 @@ def run_single_scenario(scenario_name, loss=0, delay=0, jitter=0, run_number=1):
             except:
                 pass
     
-    # Create a test metadata file
+    # Create metadata
     metadata = {
         "test_name": scenario_name,
         "run_number": run_number,
         "timestamp": timestamp,
         "duration": test_duration,
-        "network_conditions": {
-            "loss_percent": loss,
-            "delay_ms": delay,
-            "jitter_ms": jitter
-        },
+        "network": {"loss": loss, "delay": delay, "jitter": jitter},
         "clients_connected": connected_clients,
-        "files_collected": {
-            "csv_files": csv_files,
-            "log_files": log_files,
-            "pcap_file": os.path.basename(pcap_file) if pcap_file and os.path.exists(pcap_file) else None
+        "files": {
+            "csv": csv_files,
+            "logs": log_files,
+            "pcap": os.path.basename(pcap_file) if pcap_file and os.path.exists(pcap_file) else None
         }
     }
     
-    metadata_path = os.path.join(results_dir, "test_metadata.json")
+    metadata_path = os.path.join(results_dir, "metadata.json")
     with open(metadata_path, 'w') as f:
         json.dump(metadata, f, indent=2)
     
-    # Create a summary file
-    summary_path = os.path.join(results_dir, "test_summary.txt")
+    # Create summary
+    summary_path = os.path.join(results_dir, "summary.txt")
     with open(summary_path, 'w') as f:
         f.write(f"Test: {scenario_name} (Run {run_number})\n")
         f.write(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         f.write(f"Duration: {test_duration}s\n")
         f.write(f"Network: Loss={loss}%, Delay={delay}ms, Jitter={jitter}ms\n")
-        f.write(f"Connected clients: {connected_clients}/4\n")
-        f.write(f"CSV files: {len(csv_files)}\n")
-        f.write(f"Log files: {len(log_files)}\n")
-        f.write(f"PCAP file: {'Yes' if pcap_file and os.path.exists(pcap_file) else 'No'}\n")
-        f.write("\nFiles:\n")
-        for file in sorted(csv_files + log_files):
-            f.write(f"  {file}\n")
+        f.write(f"Clients: {connected_clients}/4 connected\n")
+        f.write(f"Files collected: {len(csv_files)} CSV, {len(log_files)} logs\n")
+        f.write(f"PCAP captured: {'Yes' if pcap_file and os.path.exists(pcap_file) else 'No'}\n")
     
-    print(f"\n✅ {scenario_name} test (run {run_number}) completed!")
-    print(f"   Results saved in: {results_dir}")
-    print(f"   CSV files: {len(csv_files)}")
-    print(f"   Summary: {os.path.basename(summary_path)}")
+    print(f"\n✅ {scenario_name} run {run_number} complete!")
+    print(f"   Results: {results_dir}")
     
     return {
-        "directory": results_dir,
-        "connected_clients": connected_clients,
-        "metadata": metadata
+        "dir": results_dir,
+        "connected": connected_clients,
+        "pcap": pcap_file if pcap_file and os.path.exists(pcap_file) else None
     }
 
-def run_scenario_with_repetitions(scenario_name, loss=0, delay=0, jitter=0):
-    """Run a scenario multiple times (PDF requires at least 5 repetitions)"""
-    print(f"\n📊 Running scenario: {scenario_name}")
-    print(f"   Repetitions: 5 (as per PDF requirements)")
-    print(f"   Network: Loss={loss}%, Delay={delay}ms, Jitter={jitter}ms")
+def run_scenario_with_pcaps(scenario_name, loss=0, delay=0, jitter=0):
+    """Run a scenario with PCAP capture (at least 2 runs with PCAP as per PDF)"""
+    print(f"\n📊 Running: {scenario_name}")
+    print(f"   Will run 5 times total, with PCAP for runs 1 & 2 (PDF requirement)")
     
     results = []
+    pcap_manager = PCAPManager()
     
-    for run_num in range(1, 6):  # 5 repetitions
-        print(f"\n{'#'*80}")
-        print(f"🚀 REPETITION {run_num}/5: {scenario_name.upper()}")
-        print(f"{'#'*80}")
+    try:
+        # First 2 runs with PCAP (PDF requires at least 2 PCAPs per scenario)
+        for run_num in range(1, 3):
+            print(f"\n{'#'*80}")
+            print(f"📦 RUN {run_num}/2 (WITH PCAP): {scenario_name.upper()}")
+            print(f"{'#'*80}")
+            
+            result = run_single_scenario(scenario_name, loss, delay, jitter, 
+                                       run_num, pcap_manager)
+            results.append(result)
+            
+            # Stop PCAP for this run
+            pcap_manager.stop_all()
+            
+            if run_num < 2:
+                print(f"\n⏳ Waiting 10 seconds...")
+                time.sleep(10)
+                simple_cleanup()
         
-        result = run_single_scenario(scenario_name, loss, delay, jitter, run_num)
-        results.append(result)
-        
-        # Clean up between runs (except after last)
-        if run_num < 5:
-            print(f"\n⏳ Waiting 15 seconds before next repetition...")
-            time.sleep(15)
-            simple_cleanup()
+        # Remaining runs without PCAP (faster)
+        for run_num in range(3, 6):
+            print(f"\n{'#'*80}")
+            print(f"⚡ RUN {run_num}/5 (NO PCAP): {scenario_name.upper()}")
+            print(f"{'#'*80}")
+            
+            result = run_single_scenario(scenario_name, loss, delay, jitter, 
+                                       run_num, None)  # No PCAP manager
+            results.append(result)
+            
+            if run_num < 5:
+                print(f"\n⏳ Waiting 10 seconds...")
+                time.sleep(10)
+                simple_cleanup()
+    
+    finally:
+        # Ensure PCAP is stopped
+        pcap_manager.stop_all()
+    
+    # Count PCAPs captured
+    pcap_count = sum(1 for r in results if r and r.get('pcap'))
+    print(f"\n📦 PCAP Summary: {pcap_count}/2 required PCAPs captured")
     
     return results
 
-def run_all_scenarios():
-    """Run all test scenarios from the PDF with 5 repetitions each"""
-    # Test scenarios as specified in PDF Project 2
-    scenarios = [
-        # (name, loss%, delay_ms, jitter_ms)
-        ("baseline", 0, 0, 0),
-        ("loss_2pct", 2, 0, 0),      # LAN-like loss
-        ("loss_5pct", 5, 0, 0),      # WAN-like loss
-        ("delay_100ms", 0, 100, 0),   # WAN delay
-        ("delay_jitter", 0, 100, 10), # Delay with jitter
-    ]
+def verify_pcap_requirements():
+    """Verify we have the tools needed for PCAP capture"""
+    print("\n🔍 Verifying PCAP requirements...")
     
-    print(f"\n📋 Running {len(scenarios)} test scenarios")
-    print(f"Each scenario will run 5 times (as per PDF requirements)")
-    print(f"Baseline test duration: 60 seconds")
-    print(f"Other tests: 40 seconds")
-    
-    all_results = {}
-    
-    for scenario in scenarios:
-        name, loss, delay, jitter = scenario
+    # Check for tshark
+    try:
+        if IS_WINDOWS:
+            result = subprocess.run(['tshark', '--version'], 
+                                  capture_output=True, text=True)
+        else:
+            result = subprocess.run(['which', 'tshark'], 
+                                  capture_output=True, text=True)
         
-        print(f"\n{'='*80}")
-        print(f"🚀 STARTING SCENARIO: {name.upper()}")
-        print(f"   Loss: {loss}%, Delay: {delay}ms, Jitter: {jitter}ms")
-        print(f"{'='*80}")
-        
-        scenario_results = run_scenario_with_repetitions(name, loss, delay, jitter)
-        all_results[name] = scenario_results
-        
-        # Clean up between scenarios (except after last)
-        if scenario != scenarios[-1]:
-            print(f"\n⏳ Waiting 30 seconds before next scenario...")
-            time.sleep(30)
-            simple_cleanup()
+        if result.returncode == 0:
+            print("✅ tshark is available")
+            
+            # Check if we can capture (need sudo on Linux)
+            if not IS_WINDOWS:
+                test_capture = subprocess.run(
+                    ['sudo', 'tshark', '-D'],
+                    capture_output=True, text=True
+                )
+                if test_capture.returncode == 0:
+                    print("✅ Can run tshark with sudo")
+                    interfaces = [line for line in test_capture.stdout.split('\n') 
+                                if 'lo' in line or 'Loopback' in line]
+                    if interfaces:
+                        print(f"✅ Loopback interface found: {interfaces[0].split()[1]}")
+                    else:
+                        print("⚠️  Loopback interface not listed")
+                else:
+                    print("❌ Cannot run tshark with sudo")
+                    print(f"   Error: {test_capture.stderr}")
+                    return False
+            return True
+        else:
+            print("❌ tshark not found or not working")
+            return False
+            
+    except FileNotFoundError:
+        print("❌ tshark not installed")
+        print("\n📦 Install instructions:")
+        print("  Ubuntu/Debian: sudo apt-get install tshark")
+        print("  macOS: brew install wireshark")
+        print("  Windows: Install Wireshark (includes tshark)")
+        return False
+
+def check_sudo_access():
+    """Check if we have sudo access for netem and tshark"""
+    if not IS_LINUX:
+        return True
     
-    return all_results
+    print("\n🔐 Checking sudo access...")
+    try:
+        # Test sudo for netem
+        test_result = subprocess.run(
+            ['sudo', 'tc', 'qdisc', 'show', 'dev', 'lo'],
+            capture_output=True, text=True
+        )
+        
+        if test_result.returncode == 0:
+            print("✅ sudo access granted for network configuration")
+            return True
+        else:
+            print("❌ sudo access failed")
+            print(f"   Error: {test_result.stderr}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ sudo check failed: {e}")
+        return False
 
 def main():
-    """Main function"""
-    parser = argparse.ArgumentParser(description="Grid Clash Network Test Suite - PDF Compliant")
-    parser.add_argument("--scenario", choices=["all", "baseline", "loss_2pct", "loss_5pct", 
-                                              "delay_100ms", "delay_jitter"], 
-                       default="all", help="Test scenario to run")
-    parser.add_argument("--repetitions", type=int, default=5, 
-                       help="Number of repetitions (PDF requires at least 5)")
-    parser.add_argument("--duration", type=int, default=60, 
-                       help="Test duration in seconds (baseline should be 60s)")
-    parser.add_argument("--interface", default="lo" if not IS_WINDOWS else "1",
+    """Main test runner"""
+    parser = argparse.ArgumentParser(description="Grid Clash Network Tests with PCAP")
+    parser.add_argument("--scenario", choices=["all", "baseline", "loss_2pct", 
+                                              "loss_5pct", "delay_100ms", "delay_jitter"],
+                       default="all", help="Scenario to test")
+    parser.add_argument("--no-pcap", action="store_true", help="Skip PCAP capture")
+    parser.add_argument("--interface", default="lo" if IS_LINUX else "1",
                        help="Network interface for capture")
-    parser.add_argument("--skip-capture", action="store_true",
-                       help="Skip packet capture (for faster testing)")
+    parser.add_argument("--skip-checks", action="store_true",
+                       help="Skip prerequisite checks")
     args = parser.parse_args()
     
-    global DURATION
-    DURATION = args.duration
-    
     print(f"\n{'='*80}")
-    print(f"🕹️  GRID CLASH - PDF COMPLIANT NETWORK TEST SUITE")
+    print(f"🕹️  GRID CLASH - COMPLETE TEST SUITE WITH PCAP")
     print(f"{'='*80}")
-    print(f"Platform: {platform.system()} {platform.release()}")
-    print(f"Python: {sys.executable}")
-    print(f"Server: {SERVER_SCRIPT}")
-    print(f"Client: {CLIENT_SCRIPT}")
-    print(f"Test duration: {args.duration} seconds")
-    print(f"Repetitions: {args.repetitions} (PDF minimum: 5)")
-    print(f"Network interface: {args.interface}")
+    print(f"Platform: {platform.system()}")
+    print(f"Python: {sys.version.split()[0]}")
+    print(f"PCAP Capture: {'Disabled' if args.no_pcap else 'Enabled'}")
+    print(f"Interface: {args.interface}")
     print(f"{'='*80}")
     
     # Create directories
@@ -574,50 +597,92 @@ def main():
     # Initial cleanup
     simple_cleanup()
     
-    # Run tests
+    # Check prerequisites if not skipped
+    if not args.skip_checks:
+        # Check PCAP capability if enabled
+        if not args.no_pcap and not verify_pcap_requirements():
+            print("\n⚠️  PCAP requirements not met. Running tests without PCAP.")
+            args.no_pcap = True
+        
+        # Check sudo on Linux
+        if IS_LINUX and not check_sudo_access():
+            print("\n⚠️  Sudo access issues. Network simulation may not work.")
+    
+    # Define scenarios
+    scenarios = {
+        "baseline": (0, 0, 0),
+        "loss_2pct": (2, 0, 0),
+        "loss_5pct": (5, 0, 0),
+        "delay_100ms": (0, 100, 0),
+        "delay_jitter": (0, 100, 10),
+    }
+    
+    all_results = {}
+    
     if args.scenario == "all":
-        results = run_all_scenarios()
-        
-        print(f"\n{'='*80}")
-        print(f"🎉 ALL TESTS COMPLETED!")
-        print(f"{'='*80}")
-        
-        print(f"\n📊 Summary of results:")
-        for scenario_name, scenario_results in results.items():
-            successful_runs = sum(1 for r in scenario_results if r and r.get('connected_clients', 0) >= 3)
-            print(f"   {scenario_name}: {successful_runs}/5 runs successful")
-        
-        print(f"\n📁 All results saved in: test_results/")
-        print(f"📊 Run analysis: python analyze_results.py")
-        
-        # Save overall summary
-        summary_path = "test_results/test_summary_overall.json"
-        with open(summary_path, 'w') as f:
-            json.dump(results, f, indent=2)
-        print(f"📄 Overall summary: {summary_path}")
-        
+        # Run all scenarios
+        for scenario_name, (loss, delay, jitter) in scenarios.items():
+            print(f"\n{'='*80}")
+            print(f"🚀 STARTING SCENARIO: {scenario_name.upper()}")
+            print(f"{'='*80}")
+            
+            # Use PCAP manager only if not disabled
+            pcap_manager = None if args.no_pcap else PCAPManager()
+            
+            scenario_results = run_scenario_with_pcaps(
+                scenario_name, loss, delay, jitter
+            )
+            all_results[scenario_name] = scenario_results
+            
+            # Cleanup between scenarios
+            if scenario_name != list(scenarios.keys())[-1]:
+                print(f"\n⏳ Waiting 30 seconds...")
+                time.sleep(30)
+                simple_cleanup()
+    
     else:
-        # Run single scenario with repetitions
-        scenario_map = {
-            "baseline": ("baseline", 0, 0, 0),
-            "loss_2pct": ("loss_2pct", 2, 0, 0),
-            "loss_5pct": ("loss_5pct", 5, 0, 0),
-            "delay_100ms": ("delay_100ms", 0, 100, 0),
-            "delay_jitter": ("delay_jitter", 0, 100, 10),
-        }
-        
-        if args.scenario in scenario_map:
-            name, loss, delay, jitter = scenario_map[args.scenario]
-            run_scenario_with_repetitions(name, loss, delay, jitter)
+        # Run single scenario
+        if args.scenario in scenarios:
+            loss, delay, jitter = scenarios[args.scenario]
+            pcap_manager = None if args.no_pcap else PCAPManager()
+            
+            results = run_scenario_with_pcaps(
+                args.scenario, loss, delay, jitter
+            )
+            all_results[args.scenario] = results
         else:
             print(f"❌ Unknown scenario: {args.scenario}")
+            return
     
+    # Generate final summary
     print(f"\n{'='*80}")
-    print(f"🏁 TESTING COMPLETE")
+    print(f"📊 TESTING COMPLETE - SUMMARY")
     print(f"{'='*80}")
     
-    # Final cleanup
-    simple_cleanup()
+    total_pcaps = 0
+    for scenario_name, results in all_results.items():
+        if results:
+            successful = sum(1 for r in results if r and r.get('connected', 0) >= 3)
+            pcaps = sum(1 for r in results if r and r.get('pcap'))
+            total_pcaps += pcaps
+            
+            print(f"\n{scenario_name.upper()}:")
+            print(f"  Successful runs: {successful}/5")
+            print(f"  PCAP files: {pcaps}/2")
+            if pcaps < 2:
+                print(f"  ⚠️  Warning: Only {pcaps} PCAPs (PDF requires at least 2)")
+    
+    print(f"\n📦 Total PCAP files captured: {total_pcaps}")
+    print(f"📁 Results saved in: test_results/")
+    print(f"📦 PCAP files in: captures/")
+    
+    if total_pcaps > 0:
+        print(f"\n🔍 To analyze PCAP files:")
+        print(f"   wireshark captures/*.pcap")
+        print(f"   Or: tshark -r captures/filename.pcap")
+    
+    print(f"\n📊 To analyze results: python analyze_results.py")
+    print(f"{'='*80}")
 
 if __name__ == "__main__":
     main()
