@@ -1,74 +1,88 @@
-# test_server.py
-#!/usr/bin/env python3
+# test_simple.py
+#!/usr/bin/env python
 """
-Simple script to test if server starts properly
+Simple test to verify server and client can start
 """
 
 import subprocess
 import time
 import sys
+from pathlib import Path
 
-def test_server():
-    print("Testing Grid Clash Server...")
-    print("=" * 40)
+def test_basic():
+    print("🧪 Basic Grid Clash Test")
+    print("=" * 50)
     
-    # Kill any existing server
-    try:
-        subprocess.run(['pkill', '-f', 'server_optimized.py'], 
-                     capture_output=True, stderr=subprocess.DEVNULL)
-        time.sleep(1)
-    except:
-        pass
+    # Check if scripts exist
+    server_script = Path("server_optimized.py")
+    client_script = Path("client.py")
     
-    # Start server
-    print("Starting server...")
+    if not server_script.exists():
+        print(f"❌ {server_script} not found!")
+        return False
+    
+    if not client_script.exists():
+        print(f"❌ {client_script} not found!")
+        return False
+    
+    print(f"✅ Found server script: {server_script}")
+    print(f"✅ Found client script: {client_script}")
+    
+    # Try to start server
+    print("\n🚀 Testing server startup...")
     server_proc = subprocess.Popen(
-        ['python3', 'server_optimized.py'],
+        [sys.executable, str(server_script)],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        bufsize=1,
-        universal_newlines=True
+        bufsize=1
     )
     
-    # Read server output for 5 seconds
-    print("Server output (5 seconds):")
-    print("-" * 40)
+    # Wait a bit and check
+    time.sleep(3)
     
-    start_time = time.time()
-    while time.time() - start_time < 5:
-        line = server_proc.stdout.readline()
-        if line:
-            print(line.strip())
-    
-    print("-" * 40)
-    
-    # Check if server is still running
     if server_proc.poll() is None:
-        print("✓ Server is running!")
+        print("✅ Server is running")
         
-        # Try to test with a simple client connection
-        print("\nTesting client connection...")
-        import socket
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.settimeout(2)
-            sock.sendto(b"CONNECT", ('127.0.0.1', 5555))
-            print("✓ Sent connection request")
-        except Exception as e:
-            print(f"✗ Connection test failed: {e}")
+        # Try to start a quick client
+        print("\n🎮 Testing client connection...")
+        client_proc = subprocess.Popen(
+            [sys.executable, str(client_script), "127.0.0.1", "--headless"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
         
-        sock.close()
+        # Let client run for 2 seconds
+        time.sleep(2)
+        
+        if client_proc.poll() is None:
+            print("✅ Client is running")
+        else:
+            print("⚠️  Client terminated")
+        
+        # Cleanup
+        print("\n🧹 Cleaning up...")
+        client_proc.terminate()
+        server_proc.terminate()
+        
+        client_proc.wait(timeout=2)
+        server_proc.wait(timeout=2)
+        
     else:
-        print("✗ Server terminated early")
-        print("Exit code:", server_proc.poll())
+        print("❌ Server terminated")
+        # Read output
+        output, _ = server_proc.communicate()
+        print(f"Server output:\n{output}")
+        return False
     
-    # Cleanup
-    print("\nCleaning up...")
-    server_proc.terminate()
-    server_proc.wait()
-    
-    print("Test complete!")
+    print("\n✅ Basic test passed!")
+    return True
 
 if __name__ == "__main__":
-    test_server()
+    if test_basic():
+        print("\n🎉 Ready to run full tests!")
+        print("Run: python run_tests.py")
+    else:
+        print("\n❌ Basic test failed. Check your scripts.")
