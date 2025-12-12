@@ -23,17 +23,24 @@ def analyze_scenario(folder_path):
     print(f"ANALYZING: {os.path.basename(folder_path)}")
     print(f"{'='*60}")
     
-    server_file = os.path.join(folder_path, "server_log.csv")
-    if not os.path.exists(server_file):
-        print("  [SKIP] No server_log.csv found.")
+    # Find all log files
+    server_files = glob.glob(os.path.join(folder_path, "server_log*.csv"))
+    if not server_files:
+        print("  [SKIP] No server logs found.")
         return None
     
+    server_file = server_files[0]  # Take the first server log
+    
     try:
-        # Read server log - check column names
+        # Read server log
         df_server = pd.read_csv(server_file)
         
-        # DEBUG: Print server columns to see what we have
+        print(f"  Server log: {os.path.basename(server_file)}")
         print(f"  Server columns: {list(df_server.columns)}")
+        print(f"  Server rows: {len(df_server)}")
+        
+        if len(df_server) > 0:
+            print(f"  First server row:\n{df_server.iloc[0]}")
         
         # Clean server data
         df_server = df_server.dropna()
@@ -49,6 +56,8 @@ def analyze_scenario(folder_path):
     if not client_files:
         print("  [SKIP] No client logs found.")
         return None
+    
+    print(f"  Found {len(client_files)} client logs")
     
     critical_event_files = glob.glob(os.path.join(folder_path, "critical_events_*.csv"))
     
@@ -74,36 +83,60 @@ def analyze_scenario(folder_path):
                 if line.strip():
                     print(f"    {line.strip()}")
     
+    # First, let's examine what data we have in client logs
+    all_client_data = []
     for c_file in client_files:
         try:
             df_client = pd.read_csv(c_file)
             if df_client.empty: 
                 continue
             
-            # DEBUG: Print client columns
-            print(f"  Client columns: {list(df_client.columns)}")
+            # Check what columns we have
+            print(f"\n  Processing: {os.path.basename(c_file)}")
+            print(f"    Columns: {list(df_client.columns)}")
+            print(f"    Rows: {len(df_client)}")
             
-            # Clean client data
-            df_client = df_client.dropna()
+            if 'client_id' in df_client.columns:
+                unique_ids = df_client['client_id'].unique()
+                print(f"    Client IDs: {unique_ids}")
+            
+            all_client_data.append(df_client)
+            
+        except Exception as e:
+            print(f"  [WARN] Error reading {os.path.basename(c_file)}: {e}")
+            continue
+    
+    if not all_client_data:
+        print("  [ERR] No valid client data found.")
+        return scenario_metrics
+    
+    # Process each client log
+    for i, df_client in enumerate(all_client_data):
+        try:
+            print(f"\n  Analyzing client {i+1}...")
             
             # 1. METRIC: Latency (with filtering)
-            # Remove outliers and invalid values
-            valid_latencies = df_client['latency_ms'][
-                (df_client['latency_ms'] >= 0) & 
-                (df_client['latency_ms'] <= 5000)  # Reasonable max
-            ]
-            
-            if len(valid_latencies) > 0:
-                scenario_metrics['latency']['all'].extend(valid_latencies.tolist())
-                scenario_metrics['latency']['means'].append(valid_latencies.mean())
+            if 'latency_ms' in df_client.columns:
+                valid_latencies = df_client['latency_ms'][
+                    (df_client['latency_ms'] >= 0) & 
+                    (df_client['latency_ms'] <= 5000)
+                ]
                 
-                # Calculate jitter (variation in latency)
-                if len(valid_latencies) > 1:
-                    jitter = valid_latencies.std()
-                    scenario_metrics['jitter'].append(jitter)
+                if len(valid_latencies) > 0:
+                    scenario_metrics['latency']['all'].extend(valid_latencies.tolist())
+                    scenario_metrics['latency']['means'].append(valid_latencies.mean())
+                    
+                    # Calculate jitter (variation in latency)
+                    if len(valid_latencies) > 1:
+                        jitter = valid_latencies.std()
+                        scenario_metrics['jitter'].append(jitter)
+                    
+                    print(f"    Latency samples: {len(valid_latencies)}, Mean: {valid_latencies.mean():.1f}ms")
+            else:
+                print(f"    ⚠️  No latency_ms column")
             
             # 2. METRIC: Update Rate (20Hz verification)
-            if 'snapshot_id' in df_client.columns:
+            if 'recv_time_ms' in df_client.columns and len(df_client) > 1:
                 # Calculate time between consecutive snapshots
                 df_sorted = df_client.sort_values('recv_time_ms')
                 time_diffs = df_sorted['recv_time_ms'].diff().dropna()
@@ -111,147 +144,149 @@ def analyze_scenario(folder_path):
                     avg_interval_ms = time_diffs.mean()
                     update_rate_hz = 1000.0 / avg_interval_ms if avg_interval_ms > 0 else 0
                     scenario_metrics['update_rate'].append(update_rate_hz)
+                    print(f"    Update rate: {update_rate_hz:.1f} Hz")
             
             # 3. METRIC: Position Error (PDF Requirement)
-            client_id = df_client['client_id'].iloc[0] if 'client_id' in df_client.columns else 'unknown'
-            
-            # Try to calculate position error for player_1
-            if 'player_1' in df_client['client_id'].astype(str).values:
-                df_p1 = df_client[df_client['client_id'] == 'player_1'].copy()
+            # Check if we have render position data
+            if 'render_x' in df_client.columns and 'render_y' in df_client.columns:
+                print(f"    Has render positions: Yes")
                 
-                if len(df_p1) > 0 and not df_server.empty:
-                    # Convert timestamps to seconds
-                    df_p1['ts_sec'] = df_p1['recv_time_ms'] / 1000.0
+                # Try to find matching player in server log
+                if 'client_id' in df_client.columns:
+                    client_id = df_client['client_id'].iloc[0]
+                    print(f"    Client ID: {client_id}")
                     
-                    # DEBUG: Print what columns are available in server log
-                    print(f"  Server columns available: {list(df_server.columns)}")
+                    # Try to map client ID to server player position
+                    # Server likely has columns like: 'player1_x', 'player1_y', etc.
+                    # Or numbered columns for positions
                     
-                    # Find timestamp column in server log (most important first)
-                    server_time_col = None
-                    for col in df_server.columns:
-                        if 'time' in col.lower() or 'timestamp' in col.lower():
-                            server_time_col = col
-                            break
+                    # Determine player number from client_id
+                    player_num = None
+                    if 'player_1' in str(client_id) or 'player1' in str(client_id):
+                        player_num = 1
+                    elif 'player_2' in str(client_id) or 'player2' in str(client_id):
+                        player_num = 2
+                    elif 'player_3' in str(client_id) or 'player3' in str(client_id):
+                        player_num = 3
+                    elif 'player_4' in str(client_id) or 'player4' in str(client_id):
+                        player_num = 4
                     
-                    # Try multiple approaches to find position data in server log
-                    server_positions_found = False
-                    
-                    # Approach 1: Check for specific position columns
-                    if 'player1_x' in df_server.columns and 'player1_y' in df_server.columns:
-                        server_x_col = 'player1_x'
-                        server_y_col = 'player1_y'
-                        server_positions_found = True
-                        print(f"  Found position columns: {server_x_col}, {server_y_col}")
-                    
-                    # Approach 2: Check for numbered columns (common format)
-                    elif len(df_server.columns) >= 7:  # timestamp, cpu, bytes, then positions
-                        # Try to identify position columns by index
-                        # Usually format: timestamp, cpu, bytes, p1_x, p1_y, p2_x, p2_y, p3_x, p3_y, p4_x, p4_y
-                        server_x_col = df_server.columns[3]  # Usually player1_x
-                        server_y_col = df_server.columns[4]  # Usually player1_y
-                        server_positions_found = True
-                        print(f"  Using indexed position columns: {server_x_col}, {server_y_col}")
-                    
-                    # Approach 3: Check for any columns containing position-like data
-                    else:
-                        # Look for columns with numeric data that could be positions
-                        potential_x_cols = []
-                        potential_y_cols = []
+                    if player_num:
+                        print(f"    Player number: {player_num}")
                         
+                        # Look for position columns in server log
+                        server_x_col = None
+                        server_y_col = None
+                        
+                        # Try pattern matching
                         for col in df_server.columns:
-                            if col in ['timestamp', 'cpu_percent', 'total_bytes_sent']:
-                                continue
-                            
-                            # Check if column has numeric data in reasonable range (0-19 for 20x20 grid)
-                            try:
-                                sample_value = df_server[col].iloc[0]
-                                if isinstance(sample_value, (int, float)):
-                                    if 0 <= sample_value <= 19:
-                                        if len(potential_x_cols) == 0:
-                                            potential_x_cols.append(col)
-                                        else:
-                                            potential_y_cols.append(col)
-                            except:
-                                continue
+                            col_lower = col.lower()
+                            if f'player{player_num}' in col_lower or f'player_{player_num}' in col_lower:
+                                if 'x' in col_lower or '_x' in col or col.endswith('_0'):
+                                    server_x_col = col
+                                elif 'y' in col_lower or '_y' in col or col.endswith('_1'):
+                                    server_y_col = col
                         
-                        if len(potential_x_cols) > 0 and len(potential_y_cols) > 0:
-                            server_x_col = potential_x_cols[0]
-                            server_y_col = potential_y_cols[0]
-                            server_positions_found = True
-                            print(f"  Inferred position columns: {server_x_col}, {server_y_col}")
-                    
-                    if server_positions_found and server_time_col:
-                        try:
-                            # Create clean server dataframe
-                            df_server_clean = df_server.copy()
+                        # If not found by name, try by position (common format)
+                        if not server_x_col or not server_y_col:
+                            # Server log format is often: timestamp, cpu, bytes, p1_x, p1_y, p2_x, p2_y, etc.
+                            # Player 1 positions are typically at index 3 and 4
+                            # Player 2 at 5 and 6, etc.
+                            pos_idx = 2 + (player_num * 2)  # Calculate column index
+                            if len(df_server.columns) > pos_idx + 1:
+                                server_x_col = df_server.columns[pos_idx + 1]
+                                server_y_col = df_server.columns[pos_idx + 2]
+                                print(f"    Using indexed columns: {server_x_col}, {server_y_col}")
+                        
+                        if server_x_col and server_y_col and server_x_col in df_server.columns and server_y_col in df_server.columns:
+                            print(f"    Server position columns found: {server_x_col}, {server_y_col}")
                             
-                            # Ensure columns exist
-                            if server_x_col not in df_server_clean.columns or server_y_col not in df_server_clean.columns:
-                                print(f"  ERROR: Position columns not found: {server_x_col}, {server_y_col}")
-                                continue
+                            # Now calculate position error
+                            # We need to match timestamps between client and server
                             
-                            # Rename for clarity
-                            df_server_clean = df_server_clean.rename(columns={
-                                server_x_col: 'player1_pos_x',
-                                server_y_col: 'player1_pos_y',
-                                server_time_col: 'timestamp_sec'
-                            })
+                            # Find timestamp column in server
+                            server_time_col = None
+                            for col in df_server.columns:
+                                if 'time' in col.lower() or 'timestamp' in col.lower():
+                                    server_time_col = col
+                                    break
                             
-                            # Ensure timestamp is numeric
-                            df_server_clean['timestamp_sec'] = pd.to_numeric(df_server_clean['timestamp_sec'], errors='coerce')
+                            if not server_time_col and len(df_server.columns) > 0:
+                                server_time_col = df_server.columns[0]  # Assume first column is timestamp
                             
-                            # Drop rows with NaN timestamps
-                            df_server_clean = df_server_clean.dropna(subset=['timestamp_sec'])
-                            
-                            # Sort by timestamp
-                            df_server_clean = df_server_clean.sort_values('timestamp_sec')
-                            
-                            # Merge client and server data based on timestamp
-                            # Use merge_asof to match closest timestamps
-                            df_merged = pd.merge_asof(
-                                df_p1.sort_values('ts_sec'), 
-                                df_server_clean.sort_values('timestamp_sec'), 
-                                left_on='ts_sec', 
-                                right_on='timestamp_sec', 
-                                direction='nearest',
-                                tolerance=0.5  # Match within 0.5 seconds
-                            )
-                            
-                            if not df_merged.empty and 'player1_pos_x' in df_merged.columns:
-                                # Calculate Euclidean distance error
-                                dx = df_merged['render_x'] - df_merged['player1_pos_x']
-                                dy = df_merged['render_y'] - df_merged['player1_pos_y']
+                            if server_time_col:
+                                print(f"    Server timestamp column: {server_time_col}")
                                 
-                                # Filter out NaN values
-                                mask = dx.notna() & dy.notna()
-                                if mask.any():
-                                    position_errors = np.sqrt(dx[mask]**2 + dy[mask]**2)
+                                # Prepare client data
+                                df_client_clean = df_client.copy()
+                                df_client_clean['client_time_sec'] = df_client_clean['recv_time_ms'] / 1000.0
+                                
+                                # Prepare server data
+                                df_server_clean = df_server.copy()
+                                df_server_clean = df_server_clean.rename(columns={
+                                    server_time_col: 'server_time_sec',
+                                    server_x_col: 'server_x',
+                                    server_y_col: 'server_y'
+                                })
+                                
+                                # Ensure numeric columns
+                                for col in ['server_time_sec', 'server_x', 'server_y']:
+                                    if col in df_server_clean.columns:
+                                        df_server_clean[col] = pd.to_numeric(df_server_clean[col], errors='coerce')
+                                
+                                # Drop rows with NaN
+                                df_server_clean = df_server_clean.dropna(subset=['server_time_sec', 'server_x', 'server_y'])
+                                
+                                if not df_server_clean.empty and len(df_client_clean) > 0:
+                                    # Merge based on closest timestamps
+                                    df_client_sorted = df_client_clean.sort_values('client_time_sec')
+                                    df_server_sorted = df_server_clean.sort_values('server_time_sec')
                                     
-                                    # Filter out extreme outliers (should be < 10 grid units)
-                                    valid_mask = (position_errors >= 0) & (position_errors <= 10)
-                                    valid_errors = position_errors[valid_mask]
+                                    # Use merge_asof for nearest timestamp matching
+                                    df_merged = pd.merge_asof(
+                                        df_client_sorted,
+                                        df_server_sorted,
+                                        left_on='client_time_sec',
+                                        right_on='server_time_sec',
+                                        direction='nearest',
+                                        tolerance=0.1  # Match within 100ms
+                                    )
                                     
-                                    if len(valid_errors) > 0:
-                                        print(f"  ✅ Calculated {len(valid_errors)} position error samples")
-                                        print(f"     Error range: {valid_errors.min():.4f} to {valid_errors.max():.4f}")
-                                        scenario_metrics['position_error']['all'].extend(valid_errors.tolist())
-                                        scenario_metrics['position_error']['means'].append(valid_errors.mean())
+                                    if not df_merged.empty and 'server_x' in df_merged.columns and 'server_y' in df_merged.columns:
+                                        # Calculate position error
+                                        df_merged = df_merged.dropna(subset=['render_x', 'render_y', 'server_x', 'server_y'])
+                                        
+                                        if len(df_merged) > 0:
+                                            dx = df_merged['render_x'] - df_merged['server_x']
+                                            dy = df_merged['render_y'] - df_merged['server_y']
+                                            position_errors = np.sqrt(dx**2 + dy**2)
+                                            
+                                            # Filter reasonable errors
+                                            valid_errors = position_errors[(position_errors >= 0) & (position_errors <= 10)]
+                                            
+                                            if len(valid_errors) > 0:
+                                                print(f"    ✅ Calculated {len(valid_errors)} position error samples")
+                                                print(f"       Error mean: {valid_errors.mean():.4f}, std: {valid_errors.std():.4f}")
+                                                scenario_metrics['position_error']['all'].extend(valid_errors.tolist())
+                                                scenario_metrics['position_error']['means'].append(valid_errors.mean())
+                                            else:
+                                                print(f"    ⚠️  No valid position errors after filtering")
+                                        else:
+                                            print(f"    ⚠️  No matching data after merging")
                                     else:
-                                        print(f"  ⚠️  No valid position errors after filtering")
+                                        print(f"    ⚠️  Merge failed or missing columns")
                                 else:
-                                    print(f"  ⚠️  All position calculations resulted in NaN")
+                                    print(f"    ⚠️  Not enough data for position error calculation")
                             else:
-                                print(f"  ⚠️  No matching position data found after merge")
-                                
-                        except Exception as e:
-                            print(f"  ❌ Error calculating position error: {e}")
-                            import traceback
-                            traceback.print_exc()
+                                print(f"    ⚠️  Could not find server timestamp column")
+                        else:
+                            print(f"    ⚠️  Could not find server position columns for player {player_num}")
                     else:
-                        print(f"  ❌ Could not find position data in server log")
-                        print(f"     Need timestamp column and at least 2 position columns")
+                        print(f"    ⚠️  Could not determine player number from ID: {client_id}")
+                else:
+                    print(f"    ⚠️  No client_id column")
             else:
-                print(f"  ⚠️  No player_1 data in this client log")
+                print(f"    ⚠️  No render position data (render_x, render_y)")
             
             # 4. METRIC: CPU Usage (from server log)
             if 'cpu_percent' in df_server.columns:
@@ -282,9 +317,10 @@ def analyze_scenario(folder_path):
                     received_ids = set(snapshot_ids)
                     lost_packets = len(expected_ids - received_ids)
                     scenario_metrics['packet_loss'] += lost_packets
+                    print(f"    Estimated lost packets: {lost_packets}")
                     
         except Exception as e:
-            print(f"  [WARN] Error processing {os.path.basename(c_file)}: {e}")
+            print(f"  [WARN] Error processing client data: {e}")
             import traceback
             traceback.print_exc()
             continue
@@ -346,7 +382,12 @@ def analyze_scenario(folder_path):
         else:
             print(f"      ⚠️  WARNING: Position error exceeds requirements")
     else:
-        print(f"\n    Position Error: No data (check column names)")
+        print(f"\n    Position Error: No data")
+        print(f"      Possible reasons:")
+        print(f"      1. Client logs don't have render_x/render_y columns")
+        print(f"      2. Server logs don't have matching player position columns")
+        print(f"      3. Timestamps don't align between client and server")
+        print(f"      4. No player_1/client_1 data found")
     
     # Update rate statistics
     if scenario_metrics['update_rate']:
