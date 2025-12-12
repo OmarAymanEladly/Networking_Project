@@ -1,0 +1,7 @@
+Test: Loss_5_Percent
+Loss: 5%
+Delay: 0ms
+Jitter: 0ms
+Duration: 40s
+Timestamp: 1765509810
+Interface: enp0s3

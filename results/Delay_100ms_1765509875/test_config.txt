@@ -1,0 +1,7 @@
+Test: Delay_100ms
+Loss: 0%
+Delay: 100ms
+Jitter: 10ms
+Duration: 40s
+Timestamp: 1765509875
+Interface: enp0s3

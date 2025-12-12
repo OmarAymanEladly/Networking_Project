@@ -1,0 +1,7 @@
+Test: Baseline
+Loss: 0%
+Delay: 0ms
+Jitter: 0ms
+Duration: 40s
+Timestamp: 1765509680
+Interface: enp0s3
