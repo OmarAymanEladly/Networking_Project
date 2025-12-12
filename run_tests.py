@@ -81,7 +81,7 @@ def run_scenario(name, loss, delay, jitter):
     os.makedirs(log_dir, exist_ok=True)
     
     # Apply network configuration (software simulation)
-    apply_netem_simple(loss, delay, jitter)
+    apply_netem_working(loss, delay, jitter)
     
     # Start Server
     print(f"\n[1/3] Starting Server...")
