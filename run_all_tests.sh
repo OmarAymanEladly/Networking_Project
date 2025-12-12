@@ -1,156 +1,323 @@
 #!/bin/bash
 
 # Grid Clash - Automated Test Runner
-# Phase 2 Complete Script
-# Fixes: Permissions, PCAP capture, and Lag issues
+# Updated to fix PCAP permissions and run tests reliably
 
-set -e  # Exit immediately if a command exits with a non-zero status
+set -e  # Exit on error
 
 # Configuration
 SERVER_SCRIPT="server_optimized.py"
 CLIENT_SCRIPT="client.py"
 PYTHON_CMD="python3"
+BASE_DIR=$(pwd)
 
-# Colors for pretty output
+# Colors for output
+RED='\033[0;31m'
 GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Create output directories
+# Test durations (in seconds)
+# PDF requires 60s for Baseline, but 40s is usually enough for data
+BASELINE_DURATION=40
+OTHER_DURATION=40
+
+# Test scenarios with network conditions
+declare -A SCENARIOS=(
+    ["baseline"]="0 0 0"
+    ["loss_2pct"]="2 0 0"
+    ["loss_5pct"]="5 0 0"
+    ["delay_100ms"]="0 100 0"
+    ["delay_jitter"]="0 100 10"
+)
+
+# Create directories and fix permissions immediately
 mkdir -p test_results
 mkdir -p captures
-# Ensure they are writable
-chmod 777 captures 2>/dev/null || true
-chmod 777 test_results 2>/dev/null || true
+chmod 777 captures
+chmod 777 test_results
 
-# Get the real user ID (the user who typed sudo) to fix file ownership later
-REAL_USER=${SUDO_USER:-$USER}
-REAL_GROUP=$(id -gn $REAL_USER)
+print_header() {
+    echo -e "\n${BLUE}========================================${NC}"
+    echo -e "${BLUE}  $1${NC}"
+    echo -e "${BLUE}========================================${NC}"
+}
 
-print_header() { echo -e "\n${BLUE}=== $1 ===${NC}"; }
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
 
-# Cleanup function to kill processes and reset network
+print_warning() {
+    echo -e "${YELLOW}⚠ $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}✗ $1${NC}"
+}
+
 cleanup() {
+    echo -e "\n${BLUE}========================================${NC}"
+    echo -e "${BLUE}  Cleaning up...${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    
+    # Kill any running processes
     pkill -f "$SERVER_SCRIPT" 2>/dev/null || true
     pkill -f "$CLIENT_SCRIPT" 2>/dev/null || true
-    if pgrep tshark > /dev/null; then sudo pkill tshark 2>/dev/null || true; fi
-    # Remove network simulations
-    if [[ "$OSTYPE" == "linux-gnu"* ]]; then sudo tc qdisc del dev lo root 2>/dev/null || true; fi
+    
+    # Stop tshark specifically
+    if pgrep tshark > /dev/null; then
+        sudo pkill tshark 2>/dev/null || true
+    fi
+    
+    # Clean network rules (Linux only)
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        sudo tc qdisc del dev lo root 2>/dev/null || true
+    fi
+    
+    sleep 2
+    echo -e "${GREEN}✓ Cleanup complete${NC}"
 }
 
 check_dependencies() {
-    if ! command -v python3 &>/dev/null; then echo "Error: Python3 missing"; exit 1; fi
-    if ! command -v tshark &>/dev/null; then 
-        echo "Warning: tshark missing. PCAP capture will be skipped."; 
+    print_header "Checking Dependencies"
+    
+    if command -v python3 &>/dev/null; then
+        print_success "Python3 found"
+    else
+        print_error "Python3 not found."
+        exit 1
+    fi
+    
+    if command -v tshark &>/dev/null; then
+        print_success "tshark found"
+    else
+        print_warning "tshark not found. PCAP capture will be skipped."
         SKIP_PCAP=true
+    fi
+    
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        if sudo -v &>/dev/null; then
+            print_success "sudo access available"
+        else
+            print_warning "sudo access not available. Network simulation/PCAP may fail."
+        fi
     fi
 }
 
-run_test() {
+apply_network_conditions() {
     local scenario=$1
     local loss=$2
     local delay=$3
     local jitter=$4
     
-    print_header "Running Scenario: $scenario"
+    print_header "Applying Network Conditions: $scenario"
+    echo "Loss: ${loss}%, Delay: ${delay}ms, Jitter: ${jitter}ms"
+    
+    if [[ "$OSTYPE" != "linux-gnu"* ]]; then
+        print_warning "Network simulation only available on Linux"
+        return 0
+    fi
+    
+    # Remove existing rules
+    sudo tc qdisc del dev lo root 2>/dev/null || true
+    sleep 1
+    
+    case $scenario in
+        "baseline")
+            print_success "Baseline (no network impairment)"
+            ;;
+        "loss_2pct")
+            sudo tc qdisc add dev lo root netem loss 2%
+            print_success "Applied 2% packet loss"
+            ;;
+        "loss_5pct")
+            sudo tc qdisc add dev lo root netem loss 5%
+            print_success "Applied 5% packet loss"
+            ;;
+        "delay_100ms")
+            sudo tc qdisc add dev lo root netem delay 100ms
+            print_success "Applied 100ms delay"
+            ;;
+        "delay_jitter")
+            sudo tc qdisc add dev lo root netem delay 100ms 10ms
+            print_success "Applied 100ms delay with 10ms jitter"
+            ;;
+    esac
+}
+
+start_pcap_capture() {
+    local scenario=$1
+    
+    if [[ "$SKIP_PCAP" == true ]]; then
+        return ""
+    fi
+    
+    print_header "Starting PCAP Capture"
+    
+    # --- FIX: Write to /tmp/ to avoid permission denied on Shared Folders ---
+    local temp_pcap="/tmp/${scenario}_temp.pcap"
+    
+    # Clean up old temp file
+    sudo rm -f "$temp_pcap"
+    
+    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        INTERFACE="lo"
+        # Run tshark writing to /tmp
+        sudo tshark -i $INTERFACE -f "udp port 5555" -w "$temp_pcap" -q 2>/dev/null &
+        PCAP_PID=$!
+        sleep 3
+        
+        # Check if running
+        if ps -p $PCAP_PID > /dev/null 2>&1; then
+            print_success "PCAP capture started (PID: $PCAP_PID)"
+            # Return the TEMP file path
+            echo "$temp_pcap"
+        else
+            print_warning "PCAP capture failed to start. Check permissions."
+            echo ""
+        fi
+    else
+        print_warning "PCAP capture skipped (OS not supported)"
+        echo ""
+    fi
+}
+
+stop_pcap_capture() {
+    # --- FIX: Accept temp path and final path ---
+    local temp_file=$1
+    local final_file=$2
+
+    if [[ -n "$PCAP_PID" ]]; then
+        print_header "Stopping PCAP Capture"
+        sudo kill $PCAP_PID 2>/dev/null || true
+        sleep 2
+        
+        # --- FIX: Copy from /tmp/ to final destination ---
+        if [[ -f "$temp_file" ]]; then
+            # 1. Open permissions on temp file
+            sudo chmod 666 "$temp_file"
+            
+            # 2. Copy to project folder (cp handles filesystem boundaries better than mv)
+            cp "$temp_file" "$final_file"
+            
+            # 3. Cleanup temp file
+            rm "$temp_file"
+            
+            print_success "PCAP saved to $(basename $final_file)"
+        else
+            print_warning "PCAP file was not created in /tmp"
+        fi
+    fi
+    PCAP_PID=""
+}
+
+run_test_scenario() {
+    local scenario=$1
+    local loss=$2
+    local delay=$3
+    local jitter=$4
+    
+    print_header "Running Test: $scenario"
+    
+    if [[ "$scenario" == "baseline" ]]; then
+        DURATION=$BASELINE_DURATION
+    else
+        DURATION=$OTHER_DURATION
+    fi
+    
     cleanup
     
-    # Test Duration (40s is sufficient for data collection)
-    DURATION=40
-    
-    timestamp=$(date +"%Y%m%d_%H%M%S")
-    results_dir="test_results/${scenario}_${timestamp}"
+    local timestamp=$(date +"%Y%m%d_%H%M%S")
+    local results_dir="test_results/${scenario}_${timestamp}"
     mkdir -p "$results_dir"
+    chmod 777 "$results_dir"
     
-    # 1. Apply Network Conditions (Linux Netem)
-    if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-        # Clear existing rules
-        sudo tc qdisc del dev lo root 2>/dev/null || true
-        # Apply new rules
-        if [[ "$loss" -gt 0 ]]; then sudo tc qdisc add dev lo root netem loss ${loss}%; fi
-        if [[ "$delay" -gt 0 ]]; then sudo tc qdisc add dev lo root netem delay ${delay}ms ${jitter}ms; fi
-    fi
-
-    # 2. Start PCAP Capture
-    pcap_file="$(pwd)/captures/${scenario}_${timestamp}.pcap"
-    if [[ "$SKIP_PCAP" != true ]]; then
-        echo "Starting Tshark..."
-        # Capture on loopback, port 5555, quiet mode, run in background
-        sudo tshark -i lo -f "udp port 5555" -w "$pcap_file" -q 2>/dev/null &
-        PCAP_PID=$!
-        sleep 2
-    fi
-
-    # 3. Start Server
-    echo "Starting Server..."
-    server_cmd="$PYTHON_CMD -u $SERVER_SCRIPT"
-    # If not on Linux, use software simulation (fallback)
+    apply_network_conditions "$scenario" "$loss" "$delay" "$jitter"
+    
+    # --- FIX: Handle temp vs final paths ---
+    local temp_pcap_path=$(start_pcap_capture "$scenario")
+    local final_pcap_path="$(pwd)/captures/${scenario}_${timestamp}.pcap"
+    
+    print_header "Starting Server"
+    local server_cmd="$PYTHON_CMD -u $SERVER_SCRIPT"
+    
+    # Add software loss if needed
     if [[ "$loss" -gt 0 ]] && [[ "$OSTYPE" != "linux-gnu"* ]]; then
-        server_cmd="$server_cmd --loss $(python3 -c "print($loss/100.0)")"
+        loss_decimal=$(python3 -c "print($loss/100.0)")
+        server_cmd="$server_cmd --loss $loss_decimal"
     fi
+    
     $server_cmd > "$results_dir/server.log" 2>&1 &
     SERVER_PID=$!
-    sleep 2
-
-    # 4. Start 4 Clients (Headless)
-    echo "Starting 4 Clients..."
+    sleep 3
+    
+    print_header "Starting 4 Clients"
     CLIENT_PIDS=()
     for i in {1..4}; do
         $PYTHON_CMD -u $CLIENT_SCRIPT 127.0.0.1 --headless > "$results_dir/client_$i.log" 2>&1 &
         CLIENT_PIDS+=($!)
-        sleep 0.5
-    done
-
-    # 5. Wait Loop (Progress bar)
-    for ((sec=1; sec<=DURATION; sec++)); do
-        echo -ne "Test Running: ${sec}s / ${DURATION}s \r"
         sleep 1
     done
-    echo -e "\nTest Complete."
-
-    # 6. Stop Everything
+    
+    print_header "Running Test ($DURATION seconds)"
+    for ((sec=1; sec<=DURATION; sec++)); do
+        echo -ne "\rElapsed: ${sec}s / ${DURATION}s"
+        sleep 1
+    done
+    echo ""
+    
+    print_header "Stopping Test"
     for pid in "${CLIENT_PIDS[@]}"; do kill $pid 2>/dev/null || true; done
     kill $SERVER_PID 2>/dev/null || true
     
-    if [[ -n "$PCAP_PID" ]]; then
-        sudo kill $PCAP_PID 2>/dev/null || true
-        sleep 1
-        
-        # --- PERMISSION FIX ---
-        # Change ownership of the root-created PCAP file back to the normal user
-        if [[ -f "$pcap_file" ]]; then
-            sudo chown $REAL_USER:$REAL_GROUP "$pcap_file" 2>/dev/null || true
-            sudo chmod 666 "$pcap_file" 2>/dev/null || true
-            
-            # Copy PCAP to the results folder for easy zipping
-            cp "$pcap_file" "$results_dir/"
-            echo "${GREEN}✓ PCAP captured and saved${NC}"
+    # --- FIX: Stop capture and move file ---
+    stop_pcap_capture "$temp_pcap_path" "$final_pcap_path"
+    
+    sleep 2
+    
+    print_header "Collecting Results"
+    
+    # Move CSV files
+    for csv_file in *.csv; do
+        if [[ -f "$csv_file" ]]; then
+            mv "$csv_file" "$results_dir/"
         fi
+    done
+    
+    # --- FIX: Move PCAP file from captures to results dir ---
+    if [[ -f "$final_pcap_path" ]]; then
+        mv "$final_pcap_path" "$results_dir/"
+        print_success "Moved PCAP: $(basename $final_pcap_path)"
+    else
+        print_warning "PCAP file not found in captures folder"
     fi
-    
-    # 7. Collect CSV Logs
-    # Move all .csv files generated in the current folder to the results dir
-    mv *.csv "$results_dir/" 2>/dev/null || true
-    
-    # Fix ownership of the results folder
-    sudo chown -R $REAL_USER:$REAL_GROUP "$results_dir" 2>/dev/null || true
     
     cleanup
 }
 
-# --- MAIN EXECUTION ---
-check_dependencies
+run_all_scenarios() {
+    check_dependencies
+    
+    # Run Baseline
+    run_test_scenario "baseline" 0 0 0
+    sleep 5
+    
+    # Run Loss 2%
+    run_test_scenario "loss_2pct" 2 0 0
+    sleep 5
+    
+    # Run Loss 5%
+    run_test_scenario "loss_5pct" 5 0 0
+    sleep 5
+    
+    # Run Delay
+    run_test_scenario "delay_100ms" 0 100 0
+    sleep 5
+    
+    # Run Jitter
+    run_test_scenario "delay_jitter" 0 100 10
+}
 
-# Run all 5 mandatory scenarios
-run_test "baseline" 0 0 0
-sleep 2
-run_test "loss_2pct" 2 0 0
-sleep 2
-run_test "loss_5pct" 5 0 0
-sleep 2
-run_test "delay_100ms" 0 100 0
-sleep 2
-run_test "delay_jitter" 0 100 10
-
-print_header "ALL TESTS COMPLETE"
-echo "To analyze results, run: python3 analyze_result.py"
+# Run
+run_all_scenarios
