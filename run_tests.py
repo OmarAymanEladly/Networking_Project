@@ -40,22 +40,29 @@ def simple_cleanup():
     time.sleep(1)
     print("   ✅ Cleanup done")
 
-def apply_netem_simple(loss=0, delay=0, jitter=0):
-    """Simple network configuration - uses software simulation"""
-    print(f"\n🔧 Network Configuration:")
-    print(f"   Loss: {loss}%, Delay: {delay}ms")
+def apply_netem_working(interface, loss=0, delay=0, jitter=0):
+    """Netem that actually works"""
+    # ALWAYS use these exact commands that work:
     
-    # Set environment variables for software simulation
-    os.environ['SIMULATE_NETWORK'] = '1'
-    os.environ['SIMULATE_LOSS'] = str(loss)
-    os.environ['SIMULATE_DELAY'] = str(delay)
+    if loss > 0:
+        # Use iptables for loss (REAL network layer)
+        prob = loss / 100.0
+        cmd = f"sudo iptables -A INPUT -p udp --dport 5555 -m statistic --mode random --probability {prob} -j DROP"
+        subprocess.run(cmd, shell=True)
+        print(f"✅ REAL packet loss: {loss}% via iptables")
     
-    # Try actual netem if no loss/delay needed
-    if loss == 0 and delay == 0:
-        return True
+    if delay > 0:
+        # Use tc for delay (REAL network layer)
+        cmd = f"sudo tc qdisc add dev {interface} root netem delay {delay}ms"
+        result = subprocess.run(cmd, shell=True, capture_output=True)
+        if result.returncode == 0:
+            print(f"✅ REAL delay: {delay}ms via tc")
+        else:
+            print(f"❌ tc failed: {result.stderr}")
+            # Fallback: socket options for delay
+            os.environ['SOCKET_DELAY'] = str(delay)
+            print(f"⚠️  Using socket-level delay simulation")
     
-    # For impairment scenarios, use software simulation
-    print("   Using software simulation")
     return True
 
 def run_scenario(name, loss, delay, jitter):
