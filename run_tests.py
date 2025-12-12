@@ -31,46 +31,18 @@ def check_netem():
         return True
     
     try:
-        # Try multiple version flags
-        version_flags = ['-V', '-Version', '--version', '-v']
-        
-        for flag in version_flags:
-            try:
-                result = subprocess.run(['tc', flag], 
-                                       capture_output=True, text=True, timeout=3)
-                if result.returncode == 0:
-                    print(f"✅ tc found (using flag {flag})")
-                    # Test actual netem functionality
-                    return test_netem_functionality()
-            except:
-                continue
-        
-        print("ERROR: 'tc' command not found or not working")
-        return False
+        # Try to get tc version
+        result = subprocess.run(['tc', '-V'], 
+                               capture_output=True, text=True, timeout=3)
+        if result.returncode == 0:
+            print(f"✅ tc found: {result.stdout[:50]}")
+            return True
+        else:
+            print("ERROR: 'tc' command not found or not working")
+            return False
         
     except Exception as e:
         print(f"ERROR checking netem: {e}")
-        return False
-
-def test_netem_functionality():
-    """Test if netem actually works"""
-    print("   Testing netem functionality...")
-    try:
-        # Add test rule
-        test_cmd = ['sudo', 'tc', 'qdisc', 'add', 'dev', 'lo', 'root', 'netem', 'delay', '1ms']
-        result = subprocess.run(test_cmd, capture_output=True, text=True, timeout=5)
-        
-        if result.returncode == 0:
-            # Clean up
-            subprocess.run(['sudo', 'tc', 'qdisc', 'del', 'dev', 'lo', 'root'],
-                          capture_output=True, text=True, timeout=3)
-            print("   ✅ Netem functionality verified")
-            return True
-        else:
-            print(f"   ⚠️  Netem test failed: {result.stderr[:100]}")
-            return False
-    except Exception as e:
-        print(f"   ❌ Netem test error: {e}")
         return False
 
 def setup_netem():
@@ -82,11 +54,11 @@ def setup_netem():
     return 'lo'
 
 def apply_netem(interface, loss=0, delay=0, jitter=0):
-    """Apply netem for tc version 6.1.0+"""
+    """Apply netem with timeout protection"""
     if not interface:
         return False
     
-    print(f"\n🔧 Applying netem (tc 6.1.0 syntax):")
+    print(f"\n🔧 Configuring network conditions:")
     print(f"   Interface: {interface}")
     print(f"   Loss: {loss}%, Delay: {delay}ms, Jitter: {jitter}ms")
     
@@ -95,160 +67,157 @@ def apply_netem(interface, loss=0, delay=0, jitter=0):
         print("   ✅ Baseline - no network impairment needed")
         return True
     
-    # Clean up first
+    # Clean up first with timeout
     cleanup_cmds = [
-        f"sudo tc qdisc del dev {interface} root 2>/dev/null",
-        f"sudo tc qdisc del dev {interface} ingress 2>/dev/null",
+        f"timeout 2 sudo tc qdisc del dev {interface} root 2>/dev/null",
+        f"timeout 2 sudo tc qdisc del dev {interface} ingress 2>/dev/null",
     ]
     
     for cmd in cleanup_cmds:
-        subprocess.run(cmd, shell=True, timeout=3)
+        subprocess.run(cmd, shell=True, 
+                      stdout=subprocess.DEVNULL, 
+                      stderr=subprocess.DEVNULL,
+                      timeout=3)
     
-    time.sleep(2)
+    time.sleep(1)
     
-    # Build command for tc 6.1.0
-    base_cmd = f"sudo tc qdisc add dev {interface} root netem"
-    
-    # Add limit parameter (REQUIRED for tc 6.1.0+)
-    cmd = f"{base_cmd} limit 1000"
-    
-    # Add impairments
-    if loss > 0:
-        cmd += f" loss {loss}%"
-    if delay > 0:
-        if jitter > 0:
-            cmd += f" delay {delay}ms {jitter}ms distribution normal"
-        else:
-            cmd += f" delay {delay}ms"
-    
-    print(f"   Command: {cmd}")
-    
-    try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10)
-        
-        if result.returncode == 0:
-            print("   ✅ Netem applied successfully")
-            
-            # Verify
-            verify_cmd = f"sudo tc qdisc show dev {interface}"
-            verify = subprocess.run(verify_cmd, shell=True, capture_output=True, text=True)
-            print(f"   Current config: {verify.stdout.strip()}")
-            return True
-        else:
-            print(f"   ❌ Failed: {result.stderr[:100]}")
-            
-            # Try alternative syntax
-            return try_alternative_syntax(interface, loss, delay, jitter)
-            
-    except Exception as e:
-        print(f"   ❌ Error: {e}")
-        return try_alternative_syntax(interface, loss, delay, jitter)
-
-def try_alternative_syntax(interface, loss, delay, jitter):
-    """Try alternative syntaxes for tc 6.1.0"""
-    print("\n   Trying alternative syntaxes...")
-    
-    # Alternative 1: Without 'distribution normal'
-    base_cmd = f"sudo tc qdisc add dev {interface} root netem limit 1000"
+    # Try different syntaxes for tc 6.1.0
+    syntaxes_to_try = []
     
     if loss > 0 and delay > 0:
         if jitter > 0:
-            cmd = f"{base_cmd} delay {delay}ms {jitter}ms loss {loss}%"
+            syntaxes_to_try.append(f"loss {loss}% delay {delay}ms {jitter}ms limit 1000")
+            syntaxes_to_try.append(f"delay {delay}ms {jitter}ms loss {loss}% limit 1000")
         else:
-            cmd = f"{base_cmd} delay {delay}ms loss {loss}%"
+            syntaxes_to_try.append(f"loss {loss}% delay {delay}ms limit 1000")
+            syntaxes_to_try.append(f"delay {delay}ms loss {loss}% limit 1000")
     elif loss > 0:
-        cmd = f"{base_cmd} loss {loss}%"
+        syntaxes_to_try.append(f"loss {loss}% limit 1000")
     elif delay > 0:
         if jitter > 0:
-            cmd = f"{base_cmd} delay {delay}ms {jitter}ms"
+            syntaxes_to_try.append(f"delay {delay}ms {jitter}ms limit 1000")
+            syntaxes_to_try.append(f"delay {delay}ms {jitter}ms distribution normal limit 1000")
         else:
-            cmd = f"{base_cmd} delay {delay}ms"
+            syntaxes_to_try.append(f"delay {delay}ms limit 1000")
     
-    print(f"   Alternative command: {cmd}")
+    # Try each syntax
+    for syntax in syntaxes_to_try:
+        print(f"\n   Trying: netem {syntax}")
+        cmd = f"timeout 5 sudo tc qdisc add dev {interface} root netem {syntax}"
+        
+        try:
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=6)
+            
+            if result.returncode == 0:
+                print("   ✅ Netem applied successfully")
+                
+                # Quick verify
+                verify = subprocess.run(['sudo', 'tc', 'qdisc', 'show', 'dev', interface],
+                                      capture_output=True, text=True, timeout=3)
+                print(f"   Config: {verify.stdout.strip()}")
+                return True
+            else:
+                print(f"   ⚠️  Failed: {result.stderr[:80]}")
+                
+        except subprocess.TimeoutExpired:
+            print("   ⚠️  Timeout - trying next syntax")
+            continue
+        except Exception as e:
+            print(f"   ⚠️  Error: {e}")
     
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=5)
-    
-    if result.returncode == 0:
-        print("   ✅ Alternative syntax worked")
-        return True
-    
-    # Alternative 2: Use handle parameter
-    print("\n   Trying with handle parameter...")
-    cmd = f"sudo tc qdisc add dev {interface} root handle 1: netem limit 1000"
-    
-    if loss > 0:
-        cmd += f" loss {loss}%"
-    if delay > 0:
-        if jitter > 0:
-            cmd += f" delay {delay}ms {jitter}ms"
-        else:
-            cmd += f" delay {delay}ms"
-    
-    result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=5)
-    
-    if result.returncode == 0:
-        print("   ✅ Handle syntax worked")
-        return True
-    
-    # If all fails, use software simulation
+    # If all netem methods fail, use software simulation
     print("\n   ⚠️  All netem methods failed. Using software simulation.")
     os.environ['SIMULATE_NETWORK'] = '1'
     os.environ['SIMULATE_LOSS'] = str(loss)
     os.environ['SIMULATE_DELAY'] = str(delay)
     os.environ['SIMULATE_JITTER'] = str(jitter)
     
+    print("   ✅ Software simulation enabled")
     return True
 
 def remove_netem(interface):
-    """Remove netem configuration"""
+    """Remove netem configuration with timeout protection"""
     if not interface:
         return
     
-    print(f"\n🧹 Removing netem from {interface}...")
+    print(f"\n🧹 Cleaning up network configuration...")
     
-    # Try multiple removal methods
-    removal_attempts = [
-        ['sudo', 'tc', 'qdisc', 'del', 'dev', interface, 'root'],
-        ['sudo', 'tc', 'qdisc', 'del', 'dev', interface],
-        ['sudo', 'tc', '-force', 'qdisc', 'del', 'dev', interface, '2>/dev/null'],
+    # Quick removal commands with timeouts
+    cleanup_commands = [
+        f"timeout 2 sudo tc qdisc del dev {interface} root 2>/dev/null",
+        f"timeout 2 sudo tc qdisc del dev {interface} 2>/dev/null",
+        f"timeout 2 sudo tc -force qdisc del dev {interface} 2>/dev/null",
     ]
     
-    for attempt in removal_attempts:
+    for cmd in cleanup_commands:
         try:
-            result = subprocess.run(attempt, 
-                                   stdout=subprocess.DEVNULL, 
-                                   stderr=subprocess.DEVNULL,
-                                   timeout=3)
-            if result.returncode == 0 or result.returncode == 2:  # 2 means no existing qdisc
-                print(f"   ✅ Cleaned with: {' '.join(attempt)}")
-                break
+            subprocess.run(cmd, shell=True, 
+                          stdout=subprocess.DEVNULL, 
+                          stderr=subprocess.DEVNULL,
+                          timeout=3)
         except:
             pass
     
-    time.sleep(1)
+    # Kill any hanging tc processes
+    try:
+        subprocess.run(['sudo', 'pkill', '-9', 'tc'], 
+                      stdout=subprocess.DEVNULL, 
+                      stderr=subprocess.DEVNULL,
+                      timeout=2)
+    except:
+        pass
     
-    # Verify removal
-    verify = subprocess.run(['sudo', 'tc', 'qdisc', 'show', 'dev', interface],
-                          capture_output=True, text=True, timeout=3)
-    if 'netem' not in verify.stdout.lower():
-        print("   ✅ Netem completely removed")
-    else:
-        print(f"   ⚠️  Warning: Netem might still be present")
-        print(f"   Current: {verify.stdout.strip()}")
+    time.sleep(1)
     
     # Clear simulation environment variables
     env_vars = ['SIMULATE_NETWORK', 'SIMULATE_LOSS', 'SIMULATE_DELAY', 'SIMULATE_JITTER']
     for var in env_vars:
         if var in os.environ:
             del os.environ[var]
+    
+    print("   ✅ Cleanup completed")
+
+def preemptive_cleanup():
+    """Clean up any leftover processes before starting tests"""
+    print("\n🔧 Preemptive cleanup...")
+    
+    # Kill any leftover Python processes
+    try:
+        subprocess.run(['sudo', 'pkill', '-9', 'python'], 
+                      stdout=subprocess.DEVNULL, 
+                      stderr=subprocess.DEVNULL,
+                      timeout=2)
+    except:
+        pass
+    
+    # Kill any tc processes
+    try:
+        subprocess.run(['sudo', 'pkill', '-9', 'tc'], 
+                      stdout=subprocess.DEVNULL, 
+                      stderr=subprocess.DEVNULL,
+                      timeout=2)
+    except:
+        pass
+    
+    # Remove netem from loopback
+    try:
+        subprocess.run(['sudo', 'tc', 'qdisc', 'del', 'dev', 'lo', 'root'], 
+                      stdout=subprocess.DEVNULL, 
+                      stderr=subprocess.DEVNULL,
+                      timeout=2)
+    except:
+        pass
+    
+    time.sleep(2)
+    print("   ✅ Preemptive cleanup done")
 
 def cleanup_old_files():
-    """Remove old CSV files before test"""
+    """Remove old CSV and log files before test"""
     print("\n🧹 Cleaning up old log files...")
     files_removed = 0
     
     for f in os.listdir("."):
-        if f.endswith((".csv", ".log")) and os.path.isfile(f):
+        if f.endswith((".csv", ".log", ".pcap")) and os.path.isfile(f):
             try:
                 os.remove(f)
                 files_removed += 1
@@ -258,35 +227,23 @@ def cleanup_old_files():
     if files_removed > 0:
         print(f"   Removed {files_removed} old files")
     
-    # Also clean old results if too many
+    # Clean old results if too many
     if os.path.exists("results") and len(os.listdir("results")) > 20:
         print("   Warning: results/ directory has >20 entries")
 
 def get_virtualbox_ip():
     """Get appropriate IP for VirtualBox testing"""
-    if IS_VIRTUALBOX:
-        print("⚠️  VirtualBox detected")
-        
-        # For loopback testing, use 127.0.0.1
-        print("   Using loopback (127.0.0.1) for testing")
-        return "127.0.0.1"
-    
-    # For native Linux
-    return "127.0.0.1"
+    return "127.0.0.1"  # Always use loopback for consistency
 
 def start_process(script, args=[], name=""):
     """Start a Python process with logging"""
     cmd = [PYTHON_CMD, script] + args
     env = os.environ.copy()
     
-    # Add environment variable for headless mode
-    if "--headless" in args:
-        env['HEADLESS_MODE'] = '1'
-    
-    print(f"   Starting {name if name else script}: {' '.join(cmd[:3])}...")  # Truncate for display
+    print(f"   Starting {name if name else os.path.basename(script)}...")
     
     if IS_LINUX:
-        # Capture output to log files
+        # Log to files for debugging
         stdout_file = open(f"{name}_stdout.log", "w") if name else subprocess.PIPE
         stderr_file = open(f"{name}_stderr.log", "w") if name else subprocess.PIPE
         
@@ -304,29 +261,19 @@ def kill_process(proc, name=""):
     if name:
         print(f"   Stopping {name}...")
     
-    if IS_WINDOWS:
-        try:
+    try:
+        if IS_WINDOWS:
             proc.terminate()
-            proc.wait(timeout=3)
-        except:
-            try:
-                proc.kill()
-            except:
-                pass
-    else:
-        try:
+            proc.wait(timeout=2)
+        else:
             # Kill entire process group
             os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-            time.sleep(1)
+            time.sleep(0.5)
+    except:
+        try:
+            proc.kill()
         except:
-            try:
-                proc.terminate()
-                proc.wait(timeout=3)
-            except:
-                try:
-                    proc.kill()
-                except:
-                    pass
+            pass
 
 def validate_test_setup():
     """Validate that test setup is correct"""
@@ -341,16 +288,54 @@ def validate_test_setup():
     
     print("   ✅ All required files present")
     
-    # Check Python dependencies
+    # Check if protocol.py has monotonic time fixes
     try:
-        import pandas
-        import numpy
-        import psutil
-        print("   ✅ Python dependencies installed")
-    except ImportError as e:
-        print(f"   ⚠️  Missing dependency: {e}")
+        with open("protocol.py", "r") as f:
+            content = f.read()
+            if "time.perf_counter()" not in content and "start_time_ref" not in content:
+                print("   ⚠️  protocol.py may not have monotonic time fixes")
+    except:
+        pass
     
     return True
+
+def collect_log_files(log_dir):
+    """Collect and move log files to results directory"""
+    print(f"\n📂 Collecting log files to {log_dir}...")
+    files_moved = 0
+    
+    # Collect CSV files
+    for attempt in range(3):
+        try:
+            for f in os.listdir("."):
+                if f.endswith(".csv") and os.path.getsize(f) > 100:
+                    try:
+                        dest = os.path.join(log_dir, f)
+                        if os.path.exists(f):
+                            shutil.move(f, dest)
+                            files_moved += 1
+                            print(f"   📄 Moved: {f}")
+                    except:
+                        pass
+                        
+            if files_moved > 0:
+                break
+            time.sleep(1)
+        except:
+            pass
+    
+    # Collect log files
+    for f in os.listdir("."):
+        if f.endswith((".log", ".pcap", ".txt")):
+            try:
+                dest = os.path.join(log_dir, f)
+                if os.path.exists(f):
+                    shutil.move(f, dest)
+                    files_moved += 1
+            except:
+                pass
+    
+    return files_moved
 
 def run_scenario(name, loss, delay, jitter):
     """Run a single test scenario"""
@@ -359,122 +344,76 @@ def run_scenario(name, loss, delay, jitter):
     print(f"Config: Loss={loss}%, Delay={delay}ms, Jitter={jitter}ms")
     print(f"{'='*60}")
     
+    # Preemptive cleanup
+    preemptive_cleanup()
+    
     # Create results directory
     timestamp = int(time.time())
     log_dir = f"results/{name}_{timestamp}"
     os.makedirs(log_dir, exist_ok=True)
     
-    # Clean up old files before starting
+    # Clean up old files
     cleanup_old_files()
     
     # Validate setup
     if not validate_test_setup():
-        print("❌ Test setup validation failed. Aborting.")
+        print("❌ Test setup validation failed")
         return None
     
-    # Get appropriate IP address
+    # Get IP address
     server_ip = get_virtualbox_ip()
-    print(f"\n🌐 Network Configuration:")
-    print(f"   Server IP: {server_ip}")
-    print(f"   Port: 5555")
+    print(f"\n🌐 Using server IP: {server_ip}:5555")
     
-    # Setup netem (Linux only) - BYPASS CHECK SINCE FORCE_NETEM = True
+    # Setup netem
     netem_interface = None
     netem_applied = False
     
-    if IS_LINUX:
-        print("✅ Linux detected - configuring network simulation")
+    if IS_LINUX and FORCE_NETEM:
+        print("✅ Configuring network simulation")
         netem_interface = setup_netem()
         if netem_interface:
             netem_applied = apply_netem(netem_interface, loss, delay, jitter)
             if not netem_applied:
-                print("⚠️  Using software simulation for network conditions")
+                print("⚠️  Netem failed - using software simulation")
         else:
-            print("⚠️  No interface available for netem")
-    else:
-        print("⚠️  Not Linux - using software simulation")
-    
-    # Start packet capture
-    pcap_proc = None
-    pcap_file = os.path.join(log_dir, "network_capture.pcap")
-    
-    if IS_LINUX and netem_interface and netem_applied and 'SIMULATE_NETWORK' not in os.environ:
-        try:
-            print(f"\n📡 Starting packet capture on {netem_interface}...")
-            pcap_proc = subprocess.Popen(
-                ['sudo', 'tcpdump', '-i', netem_interface, 
-                 '-w', pcap_file, 'port', '5555', '-n', '-s', '0', '-c', '1000'],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
-            time.sleep(2)
-            print("   ✅ Packet capture started")
-        except Exception as e:
-            print(f"   ⚠️  Could not start packet capture: {e}")
-            pcap_proc = None
+            print("⚠️  No interface available")
     
     # Start Server
-    print(f"\n[1/3] Starting Server on {server_ip}:5555...")
+    print(f"\n[1/3] Starting Server...")
     server_proc = start_process(SERVER_SCRIPT, [], "server")
-    
-    # Wait for server to start
-    print("   Waiting for server to initialize...")
     time.sleep(3)
     
     # Start Clients
-    print(f"\n[2/3] Starting 4 Clients...")
+    print(f"[2/3] Starting 4 Clients...")
     clients = []
     for i in range(4):
         client_args = [server_ip, "--headless"]
         client_name = f"client_{i+1}"
         clients.append(start_process(CLIENT_SCRIPT, client_args, client_name))
-        time.sleep(0.5)  # Reduced delay
+        time.sleep(0.3)
         print(f"   Started client {i+1}")
     
-    print(f"\n[3/3] Running test for {DURATION} seconds...")
-    print("   Press Ctrl+C to stop early")
-    
-    # Monitor test duration with progress bar
+    # Run test
+    print(f"\n[3/3] Running for {DURATION} seconds...")
     start_time = time.time()
-    last_progress = 0
     
     try:
         while time.time() - start_time < DURATION:
-            elapsed = time.time() - start_time
-            progress = int((elapsed / DURATION) * 50)
-            
-            if progress > last_progress:
-                bar = "[" + "=" * progress + " " * (50 - progress) + "]"
-                percent = (elapsed / DURATION) * 100
-                print(f"\rProgress: {bar} {percent:.1f}%", end='', flush=True)
-                last_progress = progress
-            
+            elapsed = int(time.time() - start_time)
+            remaining = DURATION - elapsed
+            print(f"\r⏱️  Elapsed: {elapsed:3d}s | Remaining: {remaining:3d}s", end='', flush=True)
             time.sleep(0.5)
-        
-        print("\n   ✅ Test duration complete")
-        
+        print("\n   ✅ Test complete")
     except KeyboardInterrupt:
-        print("\n\n⚠️  Test interrupted by user")
+        print("\n\n⚠️  Test interrupted")
     
     # Cleanup
     print(f"\n🧹 Cleaning up...")
-    
-    # Stop packet capture
-    if pcap_proc:
-        try:
-            pcap_proc.terminate()
-            pcap_proc.wait(timeout=3)
-            if os.path.exists(pcap_file) and os.path.getsize(pcap_file) > 0:
-                print(f"   ✅ Packet capture saved: {pcap_file}")
-            else:
-                print(f"   ⚠️  Packet capture file empty or missing")
-        except:
-            print(f"   ⚠️  Error stopping packet capture")
     
     # Stop clients
     print("   Stopping clients...")
     for i, client in enumerate(clients):
         kill_process(client, f"client_{i+1}")
-        time.sleep(0.2)
     
     # Stop server
     print("   Stopping server...")
@@ -484,89 +423,40 @@ def run_scenario(name, loss, delay, jitter):
     if netem_applied and netem_interface:
         remove_netem(netem_interface)
     
-    # Wait for processes to fully exit
+    # Wait for cleanup
     time.sleep(2)
     
     # Collect log files
-    print(f"\n📂 Collecting log files...")
-    files_moved = 0
-    
-    # Collect stdout/stderr logs
-    for i in range(1, 5):
-        for suffix in ['stdout.log', 'stderr.log']:
-            log_file = f"client_{i}_{suffix}"
-            if os.path.exists(log_file):
-                try:
-                    shutil.move(log_file, os.path.join(log_dir, log_file))
-                    files_moved += 1
-                except:
-                    pass
-    
-    # Collect server logs
-    for suffix in ['stdout.log', 'stderr.log']:
-        log_file = f"server_{suffix}"
-        if os.path.exists(log_file):
-            try:
-                shutil.move(log_file, os.path.join(log_dir, log_file))
-                files_moved += 1
-            except:
-                pass
-    
-    # Collect CSV files
-    for attempt in range(3):
-        try:
-            for f in os.listdir("."):
-                if f.endswith(".csv") and os.path.getsize(f) > 100:  # At least 100 bytes
-                    try:
-                        dest = os.path.join(log_dir, f)
-                        shutil.move(f, dest)
-                        files_moved += 1
-                        print(f"   Moved: {f} ({os.path.getsize(dest)} bytes)")
-                    except (PermissionError, shutil.Error) as e:
-                        pass
-            if files_moved >= 5:  # Expect at least 5 files (server + 4 clients)
-                break
-            time.sleep(1)
-        except Exception as e:
-            print(f"   Error moving files: {e}")
+    files_moved = collect_log_files(log_dir)
     
     # Save test configuration
     config_file = os.path.join(log_dir, "test_config.txt")
     with open(config_file, 'w') as f:
         f.write(f"Test Scenario: {name}\n")
-        f.write(f"Loss Rate: {loss}%\n")
+        f.write(f"Loss: {loss}%\n")
         f.write(f"Delay: {delay}ms\n")
         f.write(f"Jitter: {jitter}ms\n")
         f.write(f"Duration: {DURATION}s\n")
         f.write(f"Timestamp: {timestamp}\n")
-        f.write(f"Platform: {platform.system()} {platform.release()}\n")
-        f.write(f"VirtualBox: {IS_VIRTUALBOX}\n")
-        f.write(f"Server IP: {server_ip}\n")
-        f.write(f"Python: {sys.version}\n")
+        f.write(f"Platform: {platform.system()}\n")
+        f.write(f"Python: {sys.version.split()[0]}\n")
         f.write(f"Netem Applied: {netem_applied}\n")
-        if netem_interface:
-            f.write(f"Interface: {netem_interface}\n")
         if 'SIMULATE_NETWORK' in os.environ:
             f.write(f"Software Simulation: Yes\n")
     
-    # Validate collected data
-    print(f"\n📊 Test Results Summary:")
+    # Report summary
+    print(f"\n📊 Test Summary:")
     print(f"   Log directory: {log_dir}")
     print(f"   Files collected: {files_moved}")
     
     if os.path.exists(log_dir):
-        files = os.listdir(log_dir)
-        csv_files = [f for f in files if f.endswith('.csv')]
-        print(f"   CSV files: {len(csv_files)}")
+        csv_count = len([f for f in os.listdir(log_dir) if f.endswith('.csv')])
+        print(f"   CSV files: {csv_count}")
         
-        # Check if we have the essential files
-        essential_files = ['server_log.csv'] + [f'client_log_{i}.csv' for i in range(1, 5)]
-        missing = [f for f in essential_files if f not in files]
-        
-        if missing:
-            print(f"   ⚠️  Missing essential files: {missing}")
+        if csv_count >= 5:
+            print(f"   ✅ All expected files present")
         else:
-            print(f"   ✅ All essential files present")
+            print(f"   ⚠️  Missing some CSV files")
     
     return log_dir
 
@@ -576,39 +466,28 @@ def main():
     parser.add_argument("--scenario", choices=["all", "baseline", "loss2", "loss5", "delay100"], 
                        default="all", help="Test scenario to run")
     parser.add_argument("--duration", type=int, default=40, 
-                       help="Test duration in seconds (default: 40)")
-    parser.add_argument("--no-netem", action="store_true",
-                       help="Disable netem even if available")
+                       help="Test duration in seconds")
+    parser.add_argument("--software-only", action="store_true",
+                       help="Use software simulation only (no netem)")
     args = parser.parse_args()
     
     global DURATION, FORCE_NETEM
     DURATION = args.duration
     
-    if args.no_netem:
+    if args.software_only:
         FORCE_NETEM = False
-        print("⚠️  Netem disabled by user flag")
+        print("⚠️  Using software simulation only")
     
     print("\n" + "="*60)
     print("GRID CLASH NETWORK PROTOCOL TEST SUITE")
     print("="*60)
-    print(f"Platform: {platform.system()} {platform.release()}")
+    print(f"Platform: {platform.system()}")
     print(f"VirtualBox: {IS_VIRTUALBOX}")
     print(f"Python: {sys.executable}")
-    print(f"Test Duration: {DURATION} seconds per scenario")
-    print(f"Netem Enabled: {FORCE_NETEM}")
+    print(f"Duration: {DURATION}s per test")
+    print(f"Netem: {'Enabled' if FORCE_NETEM else 'Disabled (software simulation)'}")
     
-    if IS_LINUX:
-        print("✅ Linux detected")
-        if FORCE_NETEM:
-            print("✅ Netem force-enabled (will attempt to use)")
-        else:
-            netem_available = check_netem()
-            if not netem_available:
-                print("⚠️  Netem not available - using software simulation")
-    else:
-        print("⚠️  Not Linux - using software simulation")
-    
-    # Define test scenarios as per project requirements
+    # Define test scenarios
     scenarios = {
         "baseline": ("Baseline", 0, 0, 0),
         "loss2": ("Loss_2_Percent", 2, 0, 0),
@@ -622,18 +501,16 @@ def main():
     os.makedirs("results", exist_ok=True)
     
     if args.scenario == "all":
-        # Run all scenarios in order
-        scenarios_to_run = list(scenarios.items())
-        
-        for i, (key, params) in enumerate(scenarios_to_run):
-            print(f"\n📋 Running scenario {i+1}/{len(scenarios_to_run)}")
+        # Run all scenarios
+        for i, (key, params) in enumerate(scenarios.items()):
+            print(f"\n📋 Test {i+1}/4: {params[0]}")
             result_dir = run_scenario(*params)
             if result_dir:
                 results.append(result_dir)
             
-            # Wait between tests (except after last one)
-            if i < len(scenarios_to_run) - 1:
-                print(f"\n⏳ Waiting 10 seconds before next test...")
+            # Wait between tests
+            if i < len(scenarios) - 1:
+                print(f"\n⏳ Waiting 10 seconds...")
                 time.sleep(10)
     else:
         # Run specific scenario
@@ -642,26 +519,25 @@ def main():
             if result_dir:
                 results.append(result_dir)
         else:
-            print(f"❌ Error: Unknown scenario '{args.scenario}'")
+            print(f"❌ Unknown scenario: {args.scenario}")
             return
     
-    # Summary
+    # Final summary
     print("\n" + "="*60)
-    print("TESTING COMPLETE!")
+    print("✅ TESTING COMPLETE!")
     print("="*60)
     
     if results:
-        print(f"\n✅ Completed {len(results)} test scenario(s):")
+        print(f"\nCompleted {len(results)} scenario(s):")
         for result in results:
             print(f"  • {result}")
         
         print("\n📝 Next steps:")
         print("1. Analyze results: python analyze_result.py")
-        print("2. Check log files in 'results/' directory")
-        print("3. Review the analysis_report.txt")
-        print("4. Check generated plots (if matplotlib installed)")
+        print("2. Check the analysis_report.txt")
+        print("3. Review log files in results/")
     else:
-        print("❌ No tests were successfully completed.")
+        print("❌ No tests completed successfully")
     
     print("\n" + "="*60)
 
