@@ -1,0 +1,121 @@
+<frozen importlib._bootstrap>:488: RuntimeWarning: Your system is avx2 capable but pygame was not built with support for it. The performance of some of your blits could be adversely affected. Consider enabling compile time detection with environment variables like PYGAME_DETECT_AVX2=1 if you are compiling without cross compilation.
+pygame 2.5.2 (SDL 2.30.0, Python 3.12.3)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+>> Connecting to 127.0.0.1:5555...
+[OK] Connected! Assigned ID: player_3
+[player_3] Running in HEADLESS BOT mode
+[CLIENT] Cell 0_19 acquired by player_3
+[CLIENT] Failed to acquire cell 0_19 (owned by None)
+[CLIENT] Failed to acquire cell 0_19 (owned by None)
+[CLIENT] Failed to acquire cell 0_19 (owned by None)
+[CLIENT] Failed to acquire cell 0_19 (owned by None)
+[CLIENT] Cell 0_18 acquired by player_3
+[CLIENT] Failed to acquire cell 0_18 (owned by None)
+[CLIENT] Failed to acquire cell 0_18 (owned by None)
+[CLIENT] Cell 1_17 acquired by player_3
+[CLIENT] Failed to acquire cell 1_17 (owned by None)
+[CLIENT] Failed to acquire cell 1_17 (owned by None)
+[CLIENT] Cell 2_18 acquired by player_3
+[CLIENT] Failed to acquire cell 2_18 (owned by None)
+[CLIENT] Failed to acquire cell 2_18 (owned by None)
+[CLIENT] Cell 2_19 acquired by player_3
+[CLIENT] Failed to acquire cell 2_19 (owned by None)
+[CLIENT] Failed to acquire cell 2_19 (owned by None)
+[CLIENT] Failed to acquire cell 0_18 (owned by None)
+[CLIENT] Failed to acquire cell 0_18 (owned by None)
+[CLIENT] Failed to acquire cell 0_18 (owned by None)
+[CLIENT] Failed to acquire cell 0_19 (owned by None)
+[CLIENT] Failed to acquire cell 0_19 (owned by None)
+[CLIENT] Failed to acquire cell 0_19 (owned by None)
+[CLIENT] Cell 0_17 acquired by player_3
+[CLIENT] Failed to acquire cell 0_17 (owned by None)
+[CLIENT] Cell 1_18 acquired by player_3
+[CLIENT] Failed to acquire cell 1_18 (owned by None)
+[CLIENT] Failed to acquire cell 1_18 (owned by None)
+[CLIENT] Cell 2_17 acquired by player_3
+[CLIENT] Failed to acquire cell 2_17 (owned by None)
+[CLIENT] Cell 1_15 acquired by player_3
+[CLIENT] Failed to acquire cell 1_15 (owned by None)
+[CLIENT] Failed to acquire cell 1_15 (owned by None)
+[CLIENT] Failed to acquire cell 1_15 (owned by None)
+[CLIENT] Failed to acquire cell 1_15 (owned by None)
+[CLIENT] Cell 0_16 acquired by player_3
+[CLIENT] Failed to acquire cell 0_16 (owned by None)
+[CLIENT] Failed to acquire cell 0_16 (owned by None)
+[CLIENT] Failed to acquire cell 1_18 (owned by None)
+[CLIENT] Failed to acquire cell 1_18 (owned by None)
+[CLIENT] Failed to acquire cell 1_18 (owned by None)
+[CLIENT] Cell 1_19 acquired by player_3
+[CLIENT] Failed to acquire cell 1_19 (owned by None)
+[CLIENT] Failed to acquire cell 1_19 (owned by None)
+[CLIENT] Failed to acquire cell 2_19 (owned by None)
+[CLIENT] Failed to acquire cell 2_19 (owned by None)
+[CLIENT] Failed to acquire cell 2_19 (owned by None)
+[CLIENT] Cell 3_18 acquired by player_3
+[CLIENT] Failed to acquire cell 3_18 (owned by None)
+[CLIENT] Failed to acquire cell 3_18 (owned by None)
+[CLIENT] Failed to acquire cell 2_18 (owned by None)
+[CLIENT] Failed to acquire cell 2_18 (owned by None)
+[CLIENT] Failed to acquire cell 2_17 (owned by None)
+[CLIENT] Failed to acquire cell 2_17 (owned by None)
+[CLIENT] Failed to acquire cell 2_17 (owned by None)
+[CLIENT] Cell 3_15 acquired by player_3
+[CLIENT] Failed to acquire cell 3_15 (owned by None)
+[CLIENT] Failed to acquire cell 3_15 (owned by None)
+[CLIENT] Cell 3_17 acquired by player_3
+[CLIENT] Failed to acquire cell 3_17 (owned by None)
+[CLIENT] Failed to acquire cell 3_17 (owned by None)
+[CLIENT] Cell 1_16 acquired by player_3
+[CLIENT] Failed to acquire cell 1_16 (owned by None)
+[CLIENT] Failed to acquire cell 0_16 (owned by None)
+[CLIENT] Failed to acquire cell 0_16 (owned by None)
+[CLIENT] Failed to acquire cell 0_16 (owned by None)
+[CLIENT] Cell 1_14 acquired by player_3
+[CLIENT] Failed to acquire cell 1_14 (owned by None)
+[CLIENT] Failed to acquire cell 1_14 (owned by None)
+[CLIENT] Cell 0_13 acquired by player_3
+[CLIENT] Failed to acquire cell 0_13 (owned by None)
+[CLIENT] Failed to acquire cell 0_13 (owned by None)
+[CLIENT] Cell 1_11 acquired by player_3
+[CLIENT] Failed to acquire cell 1_11 (owned by None)
+[CLIENT] Failed to acquire cell 1_11 (owned by None)
+[CLIENT] Cell 1_8 acquired by player_3
+[CLIENT] Failed to acquire cell 1_8 (owned by None)
+[CLIENT] Failed to acquire cell 1_8 (owned by None)
+[CLIENT] Cell 0_7 acquired by player_3
+[CLIENT] Failed to acquire cell 0_7 (owned by None)
+[CLIENT] Failed to acquire cell 0_7 (owned by None)
+[CLIENT] Cell 0_11 acquired by player_3
+[CLIENT] Failed to acquire cell 0_11 (owned by None)
+[CLIENT] Failed to acquire cell 0_11 (owned by None)
+[CLIENT] Cell 1_12 acquired by player_3
+[CLIENT] Failed to acquire cell 1_12 (owned by None)
+[CLIENT] Failed to acquire cell 0_11 (owned by None)
+[CLIENT] Failed to acquire cell 0_11 (owned by None)
+[CLIENT] Cell 0_12 acquired by player_3
+[CLIENT] Failed to acquire cell 0_12 (owned by None)
+[CLIENT] Failed to acquire cell 1_11 (owned by None)
+[CLIENT] Failed to acquire cell 1_11 (owned by None)
+[CLIENT] Failed to acquire cell 1_11 (owned by None)
+[CLIENT] Failed to acquire cell 0_12 (owned by None)
+[CLIENT] Failed to acquire cell 0_12 (owned by None)
+[CLIENT] Failed to acquire cell 0_12 (owned by None)
+[CLIENT] Cell 2_13 acquired by player_3
+[CLIENT] Failed to acquire cell 2_13 (owned by None)
+[CLIENT] Cell 1_13 acquired by player_3
+[CLIENT] Failed to acquire cell 1_13 (owned by None)
+[CLIENT] Failed to acquire cell 1_13 (owned by None)
+[CLIENT] Cell 1_13 acquired by player_3
+[CLIENT] Cell 2_15 acquired by player_3
+[CLIENT] Failed to acquire cell 2_15 (owned by None)
+[CLIENT] Cell 0_14 acquired by player_3
+[CLIENT] Failed to acquire cell 0_14 (owned by None)
+[CLIENT] Failed to acquire cell 0_14 (owned by None)
+[CLIENT] Cell 3_13 acquired by player_3
+[CLIENT] Failed to acquire cell 3_13 (owned by None)
+Traceback (most recent call last):
+  File "/home/vboxuser/Networking_Project/client.py", line 543, in <module>
+    GridClashUDPClient(server_host=args.host).run()
+  File "/home/vboxuser/Networking_Project/client.py", line 512, in run
+    for seq, req in self.pending_requests.items():
+RuntimeError: dictionary changed size during iteration

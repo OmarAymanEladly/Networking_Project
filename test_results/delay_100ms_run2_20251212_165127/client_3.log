@@ -1,0 +1,119 @@
+<frozen importlib._bootstrap>:488: RuntimeWarning: Your system is avx2 capable but pygame was not built with support for it. The performance of some of your blits could be adversely affected. Consider enabling compile time detection with environment variables like PYGAME_DETECT_AVX2=1 if you are compiling without cross compilation.
+pygame 2.5.2 (SDL 2.30.0, Python 3.12.3)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+>> Connecting to 127.0.0.1:5555...
+[OK] Connected! Assigned ID: player_3
+[player_3] Running in HEADLESS BOT mode
+[CLIENT] Cell 1_19 acquired by player_3
+[CLIENT] Failed to acquire cell 1_19 (owned by None)
+[CLIENT] Failed to acquire cell 1_19 (owned by None)
+[CLIENT] Cell 1_18 acquired by player_3
+[CLIENT] Failed to acquire cell 1_18 (owned by None)
+[CLIENT] Failed to acquire cell 1_18 (owned by None)
+[CLIENT] Cell 2_19 acquired by player_3
+[CLIENT] Failed to acquire cell 2_19 (owned by None)
+[CLIENT] Cell 3_18 acquired by player_3
+[CLIENT] Failed to acquire cell 3_18 (owned by None)
+[CLIENT] Failed to acquire cell 3_18 (owned by None)
+[CLIENT] Cell 4_18 acquired by player_3
+[CLIENT] Failed to acquire cell 4_18 (owned by None)
+[CLIENT] Failed to acquire cell 4_18 (owned by None)
+[CLIENT] Failed to acquire cell 4_18 (owned by None)
+[CLIENT] Failed to acquire cell 4_18 (owned by None)
+[CLIENT] Failed to acquire cell 4_18 (owned by None)
+[CLIENT] Cell 4_17 acquired by player_3
+[CLIENT] Failed to acquire cell 4_17 (owned by None)
+[CLIENT] Cell 5_17 acquired by player_3
+[CLIENT] Failed to acquire cell 5_17 (owned by None)
+[CLIENT] Cell 5_18 acquired by player_3
+[CLIENT] Failed to acquire cell 5_18 (owned by None)
+[CLIENT] Failed to acquire cell 5_18 (owned by None)
+[CLIENT] Failed to acquire cell 5_17 (owned by None)
+[CLIENT] Failed to acquire cell 5_17 (owned by None)
+[CLIENT] Failed to acquire cell 5_17 (owned by None)
+[CLIENT] Cell 6_16 acquired by player_3
+[CLIENT] Failed to acquire cell 6_16 (owned by None)
+[CLIENT] Cell 6_17 acquired by player_3
+[CLIENT] Failed to acquire cell 6_17 (owned by None)
+[CLIENT] Failed to acquire cell 6_17 (owned by None)
+[CLIENT] Failed to acquire cell 6_16 (owned by None)
+[CLIENT] Failed to acquire cell 6_16 (owned by None)
+[CLIENT] Failed to acquire cell 6_17 (owned by None)
+[CLIENT] Failed to acquire cell 6_17 (owned by None)
+[CLIENT] Failed to acquire cell 6_17 (owned by None)
+[CLIENT] Cell 6_15 acquired by player_3
+[CLIENT] Failed to acquire cell 6_15 (owned by None)
+[CLIENT] Cell 8_15 acquired by player_3
+[CLIENT] Failed to acquire cell 8_15 (owned by None)
+[CLIENT] Failed to acquire cell 8_15 (owned by None)
+[CLIENT] Cell 8_14 acquired by player_3
+[CLIENT] Failed to acquire cell 8_14 (owned by None)
+[CLIENT] Failed to acquire cell 8_14 (owned by None)
+[CLIENT] Cell 11_12 acquired by player_3
+[CLIENT] Failed to acquire cell 11_12 (owned by None)
+[CLIENT] Failed to acquire cell 11_12 (owned by None)
+[CLIENT] Cell 8_12 acquired by player_3
+[CLIENT] Failed to acquire cell 8_12 (owned by None)
+[CLIENT] Failed to acquire cell 8_12 (owned by None)
+[CLIENT] Failed to acquire cell 8_12 (owned by None)
+[CLIENT] Failed to acquire cell 8_12 (owned by None)
+[CLIENT] Cell 8_11 acquired by player_3
+[CLIENT] Failed to acquire cell 8_11 (owned by None)
+[CLIENT] Failed to acquire cell 8_11 (owned by None)
+[CLIENT] Cell 9_13 acquired by player_3
+[CLIENT] Failed to acquire cell 9_13 (owned by None)
+[CLIENT] Failed to acquire cell 9_13 (owned by None)
+[CLIENT] Cell 10_12 acquired by player_3
+[CLIENT] Failed to acquire cell 10_12 (owned by None)
+[CLIENT] Failed to acquire cell 10_12 (owned by None)
+[CLIENT] Failed to acquire cell 10_12 (owned by None)
+[CLIENT] Failed to acquire cell 10_12 (owned by None)
+[CLIENT] Failed to acquire cell 10_12 (owned by None)
+[CLIENT] Failed to acquire cell 10_12 (owned by None)
+[CLIENT] Failed to acquire cell 10_12 (owned by None)
+[CLIENT] Cell 11_11 acquired by player_3
+[CLIENT] Failed to acquire cell 11_11 (owned by None)
+[CLIENT] Failed to acquire cell 11_11 (owned by None)
+[CLIENT] Cell 11_11 acquired by player_3
+[CLIENT] Failed to acquire cell 11_12 (owned by None)
+[CLIENT] Failed to acquire cell 11_12 (owned by None)
+[CLIENT] Cell 12_11 acquired by player_3
+[CLIENT] Failed to acquire cell 12_11 (owned by None)
+[CLIENT] Failed to acquire cell 12_11 (owned by None)
+[CLIENT] Cell 13_10 acquired by player_3
+[CLIENT] Failed to acquire cell 13_10 (owned by None)
+[CLIENT] Cell 13_10 acquired by player_3
+[CLIENT] Cell 14_12 acquired by player_3
+[CLIENT] Failed to acquire cell 14_12 (owned by None)
+[CLIENT] Failed to acquire cell 14_12 (owned by None)
+[CLIENT] Cell 15_13 acquired by player_3
+[CLIENT] Failed to acquire cell 15_13 (owned by None)
+[CLIENT] Cell 17_12 acquired by player_3
+[CLIENT] Failed to acquire cell 17_12 (owned by None)
+[CLIENT] Failed to acquire cell 17_12 (owned by None)
+[CLIENT] Failed to acquire cell 17_12 (owned by None)
+[CLIENT] Failed to acquire cell 17_12 (owned by None)
+[CLIENT] Failed to acquire cell 17_12 (owned by None)
+[CLIENT] Cell 19_13 acquired by player_3
+[CLIENT] Failed to acquire cell 19_13 (owned by None)
+[CLIENT] Failed to acquire cell 19_13 (owned by None)
+[CLIENT] Cell 19_12 acquired by player_3
+[CLIENT] Failed to acquire cell 19_12 (owned by None)
+[CLIENT] Failed to acquire cell 19_12 (owned by None)
+[CLIENT] Cell 18_10 acquired by player_3
+[CLIENT] Failed to acquire cell 18_10 (owned by None)
+[CLIENT] Cell 18_11 acquired by player_3
+[CLIENT] Failed to acquire cell 18_11 (owned by None)
+[CLIENT] Failed to acquire cell 18_11 (owned by None)
+[CLIENT] Failed to acquire cell 19_13 (owned by None)
+[CLIENT] Failed to acquire cell 19_13 (owned by None)
+[CLIENT] Failed to acquire cell 19_13 (owned by None)
+[CLIENT] Failed to acquire cell 17_12 (owned by None)
+[CLIENT] Failed to acquire cell 17_12 (owned by None)
+[CLIENT] Failed to acquire cell 17_12 (owned by None)
+[CLIENT] Cell 16_12 acquired by player_3
+[CLIENT] Failed to acquire cell 16_12 (owned by None)
+[CLIENT] Failed to acquire cell 16_12 (owned by None)
+[CLIENT] Failed to acquire cell 16_12 (owned by None)
+[CLIENT] Failed to acquire cell 16_12 (owned by None)
+[CLIENT] Failed to acquire cell 16_12 (owned by None)

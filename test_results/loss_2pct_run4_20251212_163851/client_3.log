@@ -1,0 +1,47 @@
+<frozen importlib._bootstrap>:488: RuntimeWarning: Your system is avx2 capable but pygame was not built with support for it. The performance of some of your blits could be adversely affected. Consider enabling compile time detection with environment variables like PYGAME_DETECT_AVX2=1 if you are compiling without cross compilation.
+pygame 2.5.2 (SDL 2.30.0, Python 3.12.3)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+>> Connecting to 127.0.0.1:5555...
+[OK] Connected! Assigned ID: player_3
+[player_3] Running in HEADLESS BOT mode
+[CLIENT] Cell 0_19 acquired by player_3
+[CLIENT] Cell 0_18 acquired by player_3
+[CLIENT] Cell 1_17 acquired by player_3
+[CLIENT] Cell 3_18 acquired by player_3
+[CLIENT] Cell 3_14 acquired by player_3
+[CLIENT] Cell 2_13 acquired by player_3
+[CLIENT] Failed to acquire cell 2_13 (owned by None)
+[CLIENT] Cell 2_11 acquired by player_3
+[CLIENT] Cell 1_9 acquired by player_3
+[CLIENT] Cell 1_6 acquired by player_3
+[CLIENT] Failed to acquire cell 1_6 (owned by None)
+[CLIENT] Cell 1_7 acquired by player_3
+[CLIENT] Cell 4_8 acquired by player_3
+[CLIENT] Cell 3_9 acquired by player_3
+[CLIENT] Cell 3_8 acquired by player_3
+[CLIENT] Failed to acquire cell 1_6 (owned by None)
+[CLIENT] Cell 1_3 acquired by player_3
+[CLIENT] Cell 2_5 acquired by player_3
+[CLIENT] Cell 0_6 acquired by player_3
+[CLIENT] Failed to acquire cell 2_5 (owned by None)
+[CLIENT] Cell 1_5 acquired by player_3
+[CLIENT] Cell 0_5 acquired by player_3
+[CLIENT] Cell 0_3 acquired by player_3
+[CLIENT] Cell 1_1 acquired by player_3
+[CLIENT] Cell 0_0 acquired by player_3
+[CLIENT] Cell 0_1 acquired by player_3
+[CLIENT] Failed to acquire cell 1_3 (owned by None)
+[CLIENT] Cell 2_4 acquired by player_3
+[CLIENT] Failed to acquire cell 2_5 (owned by None)
+[CLIENT] Failed to acquire cell 2_3 (owned by player_1)
+[CLIENT] Cell 3_4 acquired by player_3
+[CLIENT] Cell 3_5 acquired by player_3
+[CLIENT] Cell 6_3 acquired by player_3
+[CLIENT] Cell 4_5 acquired by player_3
+[CLIENT] Failed to acquire cell 4_8 (owned by None)
+[CLIENT] Failed to acquire cell 4_8 (owned by None)
+[CLIENT] Cell 3_10 acquired by player_3
+[CLIENT] Failed to acquire cell 3_8 (owned by None)
+[CLIENT] Failed to acquire cell 3_9 (owned by None)
+[CLIENT] Cell 1_8 acquired by player_3
+[CLIENT] Cell 2_8 acquired by player_3
