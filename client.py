@@ -17,6 +17,15 @@ class GridClashUDPClient:
         
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.client_socket.settimeout(0.01)  # Non-blocking
+
+        self.render_positions = {}
+
+        self.render_positions = {
+        'player_1': [0, 0],
+        'player_2': [self.grid_size-1, self.grid_size-1],
+        'player_3': [0, self.grid_size-1],
+        'player_4': [self.grid_size-1, 0]
+    }
         
         # INCREASE BUFFER SIZE for 20Hz updates
         self.client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
@@ -142,6 +151,8 @@ class GridClashUDPClient:
         header = message['header']
         payload = message['payload']
         msg_type = header['msg_type']
+
+        self.update_interpolation()
         
         # 1. FIXED: Calculate accurate latency
         if 'server_timestamp' in header:
@@ -224,7 +235,7 @@ class GridClashUDPClient:
             self.last_game_state_time = current_time
         
         # 4. Game Logic
-        if msg_type == GridClashBinaryProtocol.MSG_WELCOME:
+        elif msg_type == GridClashBinaryProtocol.MSG_WELCOME:
             self.player_id = payload.get('player_id')
             print(f"[CLIENT] Assigned player ID: {self.player_id}")
             
@@ -239,8 +250,21 @@ class GridClashUDPClient:
                 if 'player_positions' in payload:
                     self.target_positions = payload['player_positions'].copy()
                     for pid, pos in self.target_positions.items():
-                        self.render_positions[pid] = list(pos)
+                        self.render_positions[pid] = list(pos)  # THIS LINE FIXES IT
                         
+                # ALSO: Initialize for players that might not be in payload yet
+                for pid in ['player_1', 'player_2', 'player_3', 'player_4']:
+                    if pid not in self.render_positions:
+                        # Set default positions based on player ID
+                        if pid == 'player_1':
+                            self.render_positions[pid] = [0, 0]
+                        elif pid == 'player_2':
+                            self.render_positions[pid] = [self.grid_size-1, self.grid_size-1]
+                        elif pid == 'player_3':
+                            self.render_positions[pid] = [0, self.grid_size-1]
+                        elif pid == 'player_4':
+                            self.render_positions[pid] = [self.grid_size-1, 0]
+                
                 if not hasattr(self, 'last_target_pos'):
                     self.last_target_pos = {}
                     
@@ -248,8 +272,9 @@ class GridClashUDPClient:
                     self.my_predicted_pos = list(self.target_positions[self.player_id])
                     self.last_target_pos[self.player_id] = list(self.target_positions[self.player_id])
                 
-            print(f"[CLIENT] Welcome complete. Grid size: {len(self.game_data.get('grid', {}))} cells")
-                
+            print(f"[CLIENT] Welcome complete. Grid size: {len(self.game_data.get('grid', {}))} cells")     
+        
+        
         elif msg_type == GridClashBinaryProtocol.MSG_GAME_STATE:
             snapshot_id = header['snapshot_id']
             
@@ -323,7 +348,21 @@ class GridClashUDPClient:
 
     def update_interpolation(self):
         current_time = time.time()
+    
+        # FIX: Ensure all players have render positions
+        for pid in ['player_1', 'player_2', 'player_3', 'player_4']:
+            if pid not in self.render_positions:
+                # Set default positions
+                if pid == 'player_1':
+                    self.render_positions[pid] = [0, 0]
+                elif pid == 'player_2':
+                    self.render_positions[pid] = [self.grid_size-1, self.grid_size-1]
+                elif pid == 'player_3':
+                    self.render_positions[pid] = [0, self.grid_size-1]
+                elif pid == 'player_4':
+                    self.render_positions[pid] = [self.grid_size-1, 0]
         
+        # Now update interpolation for existing target positions
         for pid in self.target_positions:
             if pid not in self.render_positions:
                 self.render_positions[pid] = list(self.target_positions[pid])
