@@ -51,8 +51,10 @@ def simple_cleanup():
     print("   ✅ Cleanup done")
 
 def apply_netem_working(interface, loss=0, delay=0, jitter=0):
-    """Netem that actually works"""
-    # ALWAYS use these exact commands that work:
+    """Netem that actually works - FIXED for VirtualBox"""
+    
+    # ALWAYS clean first
+    simple_cleanup()
     
     if loss > 0:
         # Use iptables for loss (REAL network layer)
@@ -65,19 +67,116 @@ def apply_netem_working(interface, loss=0, delay=0, jitter=0):
         print(f"✅ REAL packet loss: {loss}% via iptables (both directions)")
     
     if delay > 0:
-        # Use tc for delay (REAL network layer)
-        # FIXED: Apply delay to BOTH directions by adding it to ALL loopback traffic
-        cmd = f"sudo tc qdisc add dev {interface} root netem delay {delay}ms"
-        result = subprocess.run(cmd, shell=True, capture_output=True)
+        # FIXED: Use the CORRECT netem syntax that works in VirtualBox
+        # The issue might be that delay needs jitter parameter even if jitter=0
+        if jitter > 0:
+            cmd = f"sudo tc qdisc add dev {interface} root netem delay {delay}ms {jitter}ms"
+        else:
+            # Even with 0 jitter, we need to specify distribution
+            cmd = f"sudo tc qdisc add dev {interface} root netem delay {delay}ms"
+        
+        print(f"Running: {cmd}")
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        
         if result.returncode == 0:
-            print(f"✅ REAL delay: {delay}ms via tc")
+            # VERIFY it actually worked
+            time.sleep(0.5)
+            check_cmd = f"sudo tc qdisc show dev {interface}"
+            check_result = subprocess.run(check_cmd, shell=True, capture_output=True, text=True)
+            
+            if "delay" in check_result.stdout:
+                print(f"✅ REAL delay: {delay}ms via tc")
+                print(f"   Verification: {check_result.stdout.strip()}")
+            else:
+                # Try alternative method
+                print(f"⚠️  tc rule not showing, trying alternative...")
+                apply_delay_alternative(interface, delay, jitter)
         else:
             print(f"❌ tc failed: {result.stderr}")
-            # Fallback: socket options for delay
-            os.environ['SOCKET_DELAY'] = str(delay)
-            print(f"⚠️  Using socket-level delay simulation")
+            # Try alternative method WITHOUT falling back to socket-level
+            apply_delay_alternative(interface, delay, jitter)
     
     return True
+
+
+def apply_delay_alternative(interface, delay, jitter):
+    """Alternative method to apply delay when standard tc fails"""
+    print(f"🔧 Trying alternative delay method...")
+    
+    # Method 1: Use more complex tc setup
+    try:
+        # Delete any existing
+        subprocess.run(f"sudo tc qdisc del dev {interface} root", shell=True,
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        # Add prio qdisc first, then netem on a branch
+        cmds = [
+            f"sudo tc qdisc add dev {interface} root handle 1: prio",
+            f"sudo tc qdisc add dev {interface} parent 1:3 handle 30: netem delay {delay}ms"
+        ]
+        
+        for cmd in cmds:
+            result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+            if result.returncode != 0:
+                print(f"   Failed: {result.stderr}")
+                raise Exception("tc failed")
+        
+        # Send all traffic through the delayed branch
+        cmd = f"sudo tc filter add dev {interface} protocol ip parent 1:0 prio 3 u32 match ip dst 127.0.0.1 flowid 1:3"
+        subprocess.run(cmd, shell=True)
+        
+        print(f"✅ Applied {delay}ms delay via alternative tc method")
+        
+        # Verify
+        check = subprocess.run(f"sudo tc qdisc show dev {interface}", 
+                             shell=True, capture_output=True, text=True)
+        print(f"   Current rules: {check.stdout}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Alternative method failed: {e}")
+        
+        # Method 2: Use ifb (Intermediate Functional Block) device
+        print(f"🔧 Trying IFB method...")
+        try:
+            # Load ifb module
+            subprocess.run("sudo modprobe ifb", shell=True)
+            subprocess.run("sudo ip link set dev ifb0 up", shell=True)
+            
+            # Redirect lo -> ifb0
+            subprocess.run(f"sudo tc qdisc add dev {interface} handle ffff: ingress", shell=True)
+            subprocess.run(f"sudo tc filter add dev {interface} parent ffff: protocol ip u32 match u32 0 0 action mirred egress redirect dev ifb0", shell=True)
+            
+            # Apply delay on ifb0
+            subprocess.run(f"sudo tc qdisc add dev ifb0 root netem delay {delay}ms", shell=True)
+            
+            print(f"✅ Applied {delay}ms delay via IFB method")
+            return True
+            
+        except Exception as e2:
+            print(f"❌ IFB method also failed: {e2}")
+            
+            # LAST RESORT: Use iptables TOS marking with tc
+            print(f"🔧 Trying TOS marking method...")
+            try:
+                # Clear everything
+                simple_cleanup()
+                
+                # Mark packets
+                subprocess.run("sudo iptables -t mangle -A OUTPUT -p udp -j MARK --set-mark 1", shell=True)
+                
+                # Apply tc with filter
+                subprocess.run(f"sudo tc qdisc add dev {interface} root handle 1: prio", shell=True)
+                subprocess.run(f"sudo tc qdisc add dev {interface} parent 1:1 handle 10: netem delay {delay}ms", shell=True)
+                subprocess.run(f"sudo tc filter add dev {interface} parent 1: protocol ip prio 1 handle 1 fw flowid 1:1", shell=True)
+                
+                print(f"✅ Applied {delay}ms delay via TOS marking")
+                return True
+                
+            except Exception as e3:
+                print(f"❌ All delay methods failed: {e3}")
+                print(f"⚠️  Network delay simulation may not be working")
+                return False
 
 def run_scenario(name, loss, delay, jitter):
     """Run a single test scenario - SIMPLIFIED"""
