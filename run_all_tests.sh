@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Grid Clash - Automated Test Runner
-# UPDATED FIX: Writes PCAP to /tmp first to solve VirtualBox Permission Denied errors
+# Updated to fix PCAP permissions and run tests reliably
 
 set -e  # Exit on error
 
@@ -18,7 +18,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Test durations
+# Test durations (in seconds)
+# PDF requires 60s for Baseline, but 40s is usually enough for data
 BASELINE_DURATION=40
 OTHER_DURATION=40
 
@@ -31,7 +32,7 @@ declare -A SCENARIOS=(
     ["delay_jitter"]="0 100 10"
 )
 
-# Create directories
+# Create directories and fix permissions immediately
 mkdir -p test_results
 mkdir -p captures
 chmod 777 captures
@@ -43,22 +44,33 @@ print_header() {
     echo -e "${BLUE}========================================${NC}"
 }
 
-print_success() { echo -e "${GREEN}✓ $1${NC}"; }
-print_warning() { echo -e "${YELLOW}⚠ $1${NC}"; }
-print_error() { echo -e "${RED}✗ $1${NC}"; }
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
+
+print_warning() {
+    echo -e "${YELLOW}⚠ $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}✗ $1${NC}"
+}
 
 cleanup() {
     echo -e "\n${BLUE}========================================${NC}"
     echo -e "${BLUE}  Cleaning up...${NC}"
     echo -e "${BLUE}========================================${NC}"
     
+    # Kill any running processes
     pkill -f "$SERVER_SCRIPT" 2>/dev/null || true
     pkill -f "$CLIENT_SCRIPT" 2>/dev/null || true
     
+    # Stop tshark specifically
     if pgrep tshark > /dev/null; then
         sudo pkill tshark 2>/dev/null || true
     fi
     
+    # Clean network rules (Linux only)
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         sudo tc qdisc del dev lo root 2>/dev/null || true
     fi
@@ -88,7 +100,7 @@ check_dependencies() {
         if sudo -v &>/dev/null; then
             print_success "sudo access available"
         else
-            print_warning "sudo access not available."
+            print_warning "sudo access not available. Network simulation/PCAP may fail."
         fi
     fi
 }
@@ -107,20 +119,37 @@ apply_network_conditions() {
         return 0
     fi
     
+    # Remove existing rules
     sudo tc qdisc del dev lo root 2>/dev/null || true
     sleep 1
     
     case $scenario in
-        "baseline") print_success "Baseline (no network impairment)" ;;
-        "loss_2pct") sudo tc qdisc add dev lo root netem loss 2%; print_success "Applied 2% packet loss" ;;
-        "loss_5pct") sudo tc qdisc add dev lo root netem loss 5%; print_success "Applied 5% packet loss" ;;
-        "delay_100ms") sudo tc qdisc add dev lo root netem delay 100ms; print_success "Applied 100ms delay" ;;
-        "delay_jitter") sudo tc qdisc add dev lo root netem delay 100ms 10ms; print_success "Applied 100ms delay + 10ms jitter" ;;
+        "baseline")
+            print_success "Baseline (no network impairment)"
+            ;;
+        "loss_2pct")
+            sudo tc qdisc add dev lo root netem loss 2%
+            print_success "Applied 2% packet loss"
+            ;;
+        "loss_5pct")
+            sudo tc qdisc add dev lo root netem loss 5%
+            print_success "Applied 5% packet loss"
+            ;;
+        "delay_100ms")
+            sudo tc qdisc add dev lo root netem delay 100ms
+            print_success "Applied 100ms delay"
+            ;;
+        "delay_jitter")
+            sudo tc qdisc add dev lo root netem delay 100ms 10ms
+            print_success "Applied 100ms delay with 10ms jitter"
+            ;;
     esac
 }
 
 start_pcap_capture() {
     local scenario=$1
+    local timestamp=$(date +"%Y%m%d_%H%M%S")
+    local pcap_file="$(pwd)/captures/${scenario}_${timestamp}.pcap"
     
     if [[ "$SKIP_PCAP" == true ]]; then
         return ""
@@ -128,59 +157,42 @@ start_pcap_capture() {
     
     print_header "Starting PCAP Capture"
     
-    # --- FIX STARTS HERE ---
-    # Write to /tmp/ because it is universally writable
-    local temp_pcap="/tmp/${scenario}_temp.pcap"
-    
-    # Remove old temp file if exists
-    sudo rm -f "$temp_pcap"
+    # FIX: Ensure directory is writable before starting
+    sudo chmod 777 captures
     
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         INTERFACE="lo"
-        # Run tshark writing to /tmp
-        sudo tshark -i $INTERFACE -f "udp port 5555" -w "$temp_pcap" -q 2>/dev/null &
+        # Run tshark with sudo, ensure it writes to the specific file
+        sudo tshark -i $INTERFACE -f "udp port 5555" -w "$pcap_file" -q 2>/dev/null &
         PCAP_PID=$!
         sleep 3
         
+        # Check if running
         if ps -p $PCAP_PID > /dev/null 2>&1; then
             print_success "PCAP capture started (PID: $PCAP_PID)"
-            # Return the TEMP path, not the final path yet
-            echo "$temp_pcap"
+            echo "$pcap_file"
         else
-            print_warning "PCAP capture failed to start."
+            print_warning "PCAP capture failed to start. Check permissions."
             echo ""
         fi
     else
+        print_warning "PCAP capture skipped (OS not supported)"
         echo ""
     fi
 }
 
 stop_pcap_capture() {
-    local temp_file=$1
-    local final_file=$2
-    
     if [[ -n "$PCAP_PID" ]]; then
         print_header "Stopping PCAP Capture"
         sudo kill $PCAP_PID 2>/dev/null || true
         sleep 2
         
-        if [[ -f "$temp_file" ]]; then
-            # 1. Make the temp file readable by everyone (since it was created by root)
-            sudo chmod 666 "$temp_file"
-            
-            # 2. COPY it to the destination (cp works better than mv across filesystems)
-            cp "$temp_file" "$final_file"
-            
-            # 3. Verify it arrived
-            if [[ -f "$final_file" ]]; then
-                print_success "PCAP saved to $(basename $final_file)"
-                # Delete the temp file
-                rm "$temp_file"
-            else
-                print_error "Failed to move PCAP to captures folder"
-            fi
-        else
-            print_warning "PCAP file was empty or not created"
+        # FIX: Fix permissions on the captured file so user can move it
+        # If we are running as user but used sudo for tshark, file is owned by root
+        local pcap_file=$1
+        if [[ -f "$pcap_file" ]]; then
+            sudo chmod 666 "$pcap_file"
+            print_success "PCAP capture stopped and permissions fixed"
         fi
     fi
     PCAP_PID=""
@@ -194,7 +206,11 @@ run_test_scenario() {
     
     print_header "Running Test: $scenario"
     
-    if [[ "$scenario" == "baseline" ]]; then DURATION=$BASELINE_DURATION; else DURATION=$OTHER_DURATION; fi
+    if [[ "$scenario" == "baseline" ]]; then
+        DURATION=$BASELINE_DURATION
+    else
+        DURATION=$OTHER_DURATION
+    fi
     
     cleanup
     
@@ -205,12 +221,12 @@ run_test_scenario() {
     
     apply_network_conditions "$scenario" "$loss" "$delay" "$jitter"
     
-    # Start Capture to TEMP path
-    local temp_pcap_path=$(start_pcap_capture "$scenario")
-    local final_pcap_path="$(pwd)/captures/${scenario}_${timestamp}.pcap"
+    local pcap_file=$(start_pcap_capture "$scenario")
     
     print_header "Starting Server"
     local server_cmd="$PYTHON_CMD -u $SERVER_SCRIPT"
+    
+    # Add software loss if needed
     if [[ "$loss" -gt 0 ]] && [[ "$OSTYPE" != "linux-gnu"* ]]; then
         loss_decimal=$(python3 -c "print($loss/100.0)")
         server_cmd="$server_cmd --loss $loss_decimal"
@@ -239,43 +255,51 @@ run_test_scenario() {
     for pid in "${CLIENT_PIDS[@]}"; do kill $pid 2>/dev/null || true; done
     kill $SERVER_PID 2>/dev/null || true
     
-    # Stop PCAP and move file
-    stop_pcap_capture "$temp_pcap_path" "$final_pcap_path"
+    # Stop PCAP and fix permissions
+    stop_pcap_capture "$pcap_file"
     
     sleep 2
     
     print_header "Collecting Results"
     
-    local csv_count=0
+    # Move CSV files
     for csv_file in *.csv; do
         if [[ -f "$csv_file" ]]; then
             mv "$csv_file" "$results_dir/"
-            ((csv_count++))
         fi
     done
     
-    # Copy the PCAP to the results folder too
-    if [[ -f "$final_pcap_path" ]]; then
-        cp "$final_pcap_path" "$results_dir/"
-        print_success "PCAP included in results folder"
+    # Move PCAP file
+    if [[ -n "$pcap_file" ]] && [[ -f "$pcap_file" ]]; then
+        mv "$pcap_file" "$results_dir/"
+        print_success "Moved PCAP: $(basename $pcap_file)"
+    else
+        print_warning "PCAP file not found or empty"
     fi
     
-    print_success "Results saved to: $results_dir"
     cleanup
-    return 0
 }
 
 run_all_scenarios() {
     check_dependencies
     
+    # Run Baseline
     run_test_scenario "baseline" 0 0 0
     sleep 5
+    
+    # Run Loss 2%
     run_test_scenario "loss_2pct" 2 0 0
     sleep 5
+    
+    # Run Loss 5%
     run_test_scenario "loss_5pct" 5 0 0
     sleep 5
+    
+    # Run Delay
     run_test_scenario "delay_100ms" 0 100 0
     sleep 5
+    
+    # Run Jitter
     run_test_scenario "delay_jitter" 0 100 10
 }
 
