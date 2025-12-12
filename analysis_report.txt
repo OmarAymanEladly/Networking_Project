@@ -1,0 +1,387 @@
+GRID CLASH PROTOCOL - COMPREHENSIVE ANALYSIS
+============================================================
+Found 4 test run(s).
+
+============================================================
+ANALYZING: Baseline_1765509680
+============================================================
+  Server log: server_log.csv
+  Server columns: ['timestamp', 'cpu_percent', 'bytes_sent', 'player1_pos_x', 'player1_pos_y', 'player2_pos_x', 'player2_pos_y', 'player3_pos_x', 'player3_pos_y', 'player4_pos_x', 'player4_pos_y']
+  Server rows: 665
+  Sample server data (first row):
+    timestamp: 1765509684.1805737
+    cpu_percent: 0.0
+    bytes_sent: 0
+    player1_pos_x: 0
+    player1_pos_y: 0
+    ... and 6 more columns
+  Found 4 client logs
+  Test Configuration:
+    Test: Baseline
+    Loss: 0%
+    Delay: 0ms
+    Jitter: 0ms
+    Duration: 40s
+    Timestamp: 1765509680
+    Interface: enp0s3
+  File client_log_8479.csv has client IDs: ['unknown_4580' 'player_1']
+  [OK] Found player_1 data in client_log_8479.csv
+    Player_1 rows: 872
+  File client_log_8480.csv has client IDs: ['unknown_7043' 'player_2']
+  File client_log_8492.csv has client IDs: ['unknown_8651' 'player_3']
+  File client_log_8501.csv has client IDs: ['unknown_9814' 'player_4']
+
+  Calculating position error for player_1...
+  Found server position columns: player1_pos_x, player1_pos_y
+  Using server columns:
+    Time: timestamp
+    X: player1_pos_x
+    Y: player1_pos_y
+  Server epoch time range: 1765509684.18 to 1765509729.25
+  Server relative time range: 0.00 to 45.07
+  Client time range: 0.48 to 41.60
+  Server aligned time range: -0.48 to 44.59
+  Merged data shape: (872, 25)
+  Clean merged data shape: (870, 25)
+  Sample merged data (first row):
+    Client time: 0.48
+    Server time: 0.48
+    Client pos: (0.0, 0.0)
+    Server pos: (0.0, 0.0)
+  [OK] Calculated 870 position error samples
+    Error stats - Mean: 2.7370, Std: 1.2733
+    Min error: 0.0000, Max error: 6.0828
+
+  [METRICS] COMPREHENSIVE METRICS:
+    Latency:
+      Mean: 1.0 ms
+      Median: 1.0 ms
+      95th percentile: 1.0 ms
+      Std Dev: 0.0 ms
+      [PASS] Meets ≤50ms requirement
+
+    Position Error:
+      Mean: 2.7370 grid units
+      Std Dev: 1.2726 grid units
+      95th percentile: 5.0000 grid units
+      Max: 6.0828 grid units
+      Min: 0.0000 grid units
+      Samples: 870
+      [WARN] Position error exceeds requirements
+
+    Update Rate:
+      Average: 21.4 Hz
+      Target: 20 Hz
+      [PASS] Within 20±2 Hz target
+
+    Critical Event Delivery:
+      Events within 200ms: 100.0%
+      Average latency: 1.0 ms
+      Total events: 163
+      [PASS] Meets ≥99% within 200ms requirement
+
+    Server CPU Usage:
+      Average: 37.5%
+      [PASS] Below 60% threshold
+
+    Bandwidth Usage:
+      Average: 244.9 Kbps per client
+
+    Jitter:
+      Average: 0.0 ms
+
+    Packet Loss Estimation:
+      Estimated lost packets: 59
+
+============================================================
+ANALYZING: Delay_100ms_1765509875
+============================================================
+  Server log: server_log.csv
+  Server columns: ['timestamp', 'cpu_percent', 'bytes_sent', 'player1_pos_x', 'player1_pos_y', 'player2_pos_x', 'player2_pos_y', 'player3_pos_x', 'player3_pos_y', 'player4_pos_x', 'player4_pos_y']
+  Server rows: 634
+  Sample server data (first row):
+    timestamp: 1765509879.0167286
+    cpu_percent: 0.0
+    bytes_sent: 0
+    player1_pos_x: 0
+    player1_pos_y: 0
+    ... and 6 more columns
+  Found 4 client logs
+  Test Configuration:
+    Test: Delay_100ms
+    Loss: 0%
+    Delay: 100ms
+    Jitter: 10ms
+    Duration: 40s
+    Timestamp: 1765509875
+    Interface: enp0s3
+  File client_log_8828.csv has client IDs: ['unknown_1994' 'player_1']
+  [OK] Found player_1 data in client_log_8828.csv
+    Player_1 rows: 857
+  File client_log_8830.csv has client IDs: ['unknown_2718' 'player_2']
+  File client_log_8840.csv has client IDs: ['unknown_1817' 'player_3']
+  File client_log_8855.csv has client IDs: ['unknown_4789' 'player_4']
+
+  Calculating position error for player_1...
+  Found server position columns: player1_pos_x, player1_pos_y
+  Using server columns:
+    Time: timestamp
+    X: player1_pos_x
+    Y: player1_pos_y
+  Server epoch time range: 1765509879.02 to 1765509923.52
+  Server relative time range: 0.00 to 44.50
+  Client time range: 0.84 to 41.06
+  Server aligned time range: -0.84 to 43.66
+  Merged data shape: (857, 25)
+  Clean merged data shape: (855, 25)
+  Sample merged data (first row):
+    Client time: 0.84
+    Server time: 0.89
+    Client pos: (0.0, 0.0)
+    Server pos: (0.0, 0.0)
+  [OK] Calculated 855 position error samples
+    Error stats - Mean: 2.2665, Std: 1.2175
+    Min error: 0.0000, Max error: 6.0828
+
+  [METRICS] COMPREHENSIVE METRICS:
+    Latency:
+      Mean: 1.0 ms
+      Median: 1.0 ms
+      95th percentile: 1.0 ms
+      Std Dev: 0.0 ms
+      [PASS] Meets ≤50ms requirement
+
+    Position Error:
+      Mean: 2.2665 grid units
+      Std Dev: 1.2168 grid units
+      95th percentile: 4.4721 grid units
+      Max: 6.0828 grid units
+      Min: 0.0000 grid units
+      Samples: 855
+      [WARN] Position error exceeds requirements
+
+    Update Rate:
+      Average: 21.3 Hz
+      Target: 20 Hz
+      [PASS] Within 20±2 Hz target
+
+    Critical Event Delivery:
+      Events within 200ms: 100.0%
+      Average latency: 1.0 ms
+      Total events: 160
+      [PASS] Meets ≥99% within 200ms requirement
+
+    Server CPU Usage:
+      Average: 34.1%
+      [PASS] Below 60% threshold
+
+    Bandwidth Usage:
+      Average: 243.3 Kbps per client
+
+    Jitter:
+      Average: 0.0 ms
+
+    Packet Loss Estimation:
+      Estimated lost packets: 40
+
+============================================================
+ANALYZING: Loss_2_Percent_1765509744
+============================================================
+  Server log: server_log.csv
+  Server columns: ['timestamp', 'cpu_percent', 'bytes_sent', 'player1_pos_x', 'player1_pos_y', 'player2_pos_x', 'player2_pos_y', 'player3_pos_x', 'player3_pos_y', 'player4_pos_x', 'player4_pos_y']
+  Server rows: 681
+  Sample server data (first row):
+    timestamp: 1765509749.4413035
+    cpu_percent: 0.0
+    bytes_sent: 0
+    player1_pos_x: 0
+    player1_pos_y: 0
+    ... and 6 more columns
+  Found 4 client logs
+  Test Configuration:
+    Test: Loss_2_Percent
+    Loss: 2%
+    Delay: 0ms
+    Jitter: 0ms
+    Duration: 40s
+    Timestamp: 1765509744
+    Interface: enp0s3
+  File client_log_8595.csv has client IDs: ['unknown_5464' 'player_1']
+  [OK] Found player_1 data in client_log_8595.csv
+    Player_1 rows: 880
+  File client_log_8596.csv has client IDs: ['unknown_5803' 'player_2']
+  File client_log_8607.csv has client IDs: ['unknown_8752' 'player_3']
+  File client_log_8617.csv has client IDs: ['unknown_9124' 'player_4']
+
+  Calculating position error for player_1...
+  Found server position columns: player1_pos_x, player1_pos_y
+  Using server columns:
+    Time: timestamp
+    X: player1_pos_x
+    Y: player1_pos_y
+  Server epoch time range: 1765509749.44 to 1765509795.49
+  Server relative time range: 0.00 to 46.05
+  Client time range: 0.36 to 42.05
+  Server aligned time range: -0.36 to 45.69
+  Merged data shape: (880, 25)
+  Clean merged data shape: (879, 25)
+  Sample merged data (first row):
+    Client time: 0.36
+    Server time: 0.34
+    Client pos: (0.0, 0.0)
+    Server pos: (0.0, 0.0)
+  [OK] Calculated 879 position error samples
+    Error stats - Mean: 3.1501, Std: 1.8214
+    Min error: 0.0000, Max error: 7.8102
+
+  [METRICS] COMPREHENSIVE METRICS:
+    Latency:
+      Mean: 1.0 ms
+      Median: 1.0 ms
+      95th percentile: 1.0 ms
+      Std Dev: 0.0 ms
+      [PASS] Meets ≤50ms requirement
+
+    Position Error:
+      Mean: 3.1501 grid units
+      Std Dev: 1.8204 grid units
+      95th percentile: 6.4031 grid units
+      Max: 7.8102 grid units
+      Min: 0.0000 grid units
+      Samples: 879
+      [WARN] Position error exceeds requirements
+
+    Update Rate:
+      Average: 21.1 Hz
+      Target: 20 Hz
+      [PASS] Within 20±2 Hz target
+
+    Critical Event Delivery:
+      Events within 200ms: 100.0%
+      Average latency: 1.0 ms
+      Total events: 167
+      [PASS] Meets ≥99% within 200ms requirement
+
+    Server CPU Usage:
+      Average: 32.1%
+      [PASS] Below 60% threshold
+
+    Bandwidth Usage:
+      Average: 249.4 Kbps per client
+
+    Jitter:
+      Average: 0.0 ms
+
+    Packet Loss Estimation:
+      Estimated lost packets: 133
+
+============================================================
+ANALYZING: Loss_5_Percent_1765509810
+============================================================
+  Server log: server_log.csv
+  Server columns: ['timestamp', 'cpu_percent', 'bytes_sent', 'player1_pos_x', 'player1_pos_y', 'player2_pos_x', 'player2_pos_y', 'player3_pos_x', 'player3_pos_y', 'player4_pos_x', 'player4_pos_y']
+  Server rows: 650
+  Sample server data (first row):
+    timestamp: 1765509813.5120175
+    cpu_percent: 0.0
+    bytes_sent: 0
+    player1_pos_x: 0
+    player1_pos_y: 0
+    ... and 6 more columns
+  Found 4 client logs
+  Test Configuration:
+    Test: Loss_5_Percent
+    Loss: 5%
+    Delay: 0ms
+    Jitter: 0ms
+    Duration: 40s
+    Timestamp: 1765509810
+    Interface: enp0s3
+  File client_log_8712.csv has client IDs: ['unknown_1036' 'player_1']
+  [OK] Found player_1 data in client_log_8712.csv
+    Player_1 rows: 815
+  File client_log_8714.csv has client IDs: ['unknown_4856' 'player_2']
+  File client_log_8727.csv has client IDs: ['unknown_7719' 'player_3']
+  File client_log_8739.csv has client IDs: ['unknown_5023' 'player_4']
+
+  Calculating position error for player_1...
+  Found server position columns: player1_pos_x, player1_pos_y
+  Using server columns:
+    Time: timestamp
+    X: player1_pos_x
+    Y: player1_pos_y
+  Server epoch time range: 1765509813.51 to 1765509857.41
+  Server relative time range: 0.00 to 43.90
+  Client time range: 0.37 to 40.49
+  Server aligned time range: -0.37 to 43.53
+  Merged data shape: (815, 25)
+  Clean merged data shape: (815, 25)
+  Sample merged data (first row):
+    Client time: 0.37
+    Server time: 0.36
+    Client pos: (0.0, 0.0)
+    Server pos: (0, 0)
+  [OK] Calculated 815 position error samples
+    Error stats - Mean: 1.8614, Std: 1.0333
+    Min error: 0.0000, Max error: 5.0990
+
+  [METRICS] COMPREHENSIVE METRICS:
+    Latency:
+      Mean: 1.0 ms
+      Median: 1.0 ms
+      95th percentile: 1.0 ms
+      Std Dev: 0.0 ms
+      [PASS] Meets ≤50ms requirement
+
+    Position Error:
+      Mean: 1.8614 grid units
+      Std Dev: 1.0327 grid units
+      95th percentile: 3.6056 grid units
+      Max: 5.0990 grid units
+      Min: 0.0000 grid units
+      Samples: 815
+      [WARN] Position error exceeds requirements
+
+    Update Rate:
+      Average: 20.6 Hz
+      Target: 20 Hz
+      [PASS] Within 20±2 Hz target
+
+    Critical Event Delivery:
+      Events within 200ms: 100.0%
+      Average latency: 1.0 ms
+      Total events: 170
+      [PASS] Meets ≥99% within 200ms requirement
+
+    Server CPU Usage:
+      Average: 37.6%
+      [PASS] Below 60% threshold
+
+    Bandwidth Usage:
+      Average: 230.6 Kbps per client
+
+    Jitter:
+      Average: 0.0 ms
+
+    Packet Loss Estimation:
+      Estimated lost packets: 204
+
+================================================================================
+FINAL SUMMARY REPORT
+================================================================================
+
+Scenario        Latency (ms)    Pos Error    Update Rate  CPU %     
+--------------- --------------- ------------ ------------ ----------
+Baseline        1.0             2.7370       21.4         37.5      
+Delay 100ms     1.0             2.2665       21.3         34.1      
+Loss 2%         1.0             3.1501       21.1         32.1      
+Loss 5%         1.0             1.8614       20.6         37.6      
+
+[OK] Generated: latency_summary.png
+[OK] Generated: position_error_summary.png
+
+============================================================
+ANALYSIS COMPLETE
+Detailed report saved to: analysis_report.txt
+Summary plots saved to: latency_summary.png, position_error_summary.png
+============================================================

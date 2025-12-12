@@ -11,33 +11,15 @@ from logger import GameLogger
 
 class GridClashUDPClient:
     def __init__(self, server_host='127.0.0.1', server_port=5555):
-
-        def detect_server_ip(default_host):
-            import subprocess
-            # If default is localhost and we're testing with netem,
-            # try to get the actual interface IP
-            if default_host == '127.0.0.1':
-                # Check if we should use interface IP (for netem testing)
-                cmd = "ip -4 addr show enp0s3 2>/dev/null | grep -oP '(?<=inet\\s)\\d+(\\.\\d+){3}'"
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-                iface_ip = result.stdout.strip()
-                if iface_ip:
-                    print(f"📡 Using interface IP for netem: {iface_ip}")
-                    return iface_ip
-            return default_host
-        
-        # Store the detected IP
-        self.server_host = detect_server_ip(server_host)
+        self.server_host = server_host
         self.server_port = server_port
-        
-        # FIXED: Use self.server_host, not the parameter server_host
         self.server_address = (self.server_host, self.server_port)
         
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.client_socket.settimeout(0.01) # Non-blocking
+        self.client_socket.settimeout(0.01)  # Non-blocking
         
         # INCREASE BUFFER SIZE for 20Hz updates
-        self.client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)  # 1MB
+        self.client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
         
         self.last_snapshot_id = -1
         self.sequence_num = 0
@@ -80,27 +62,29 @@ class GridClashUDPClient:
         # Track update rate
         self.last_update_time = 0
         self.update_intervals = []
+        self.last_game_state_time = None
 
-        self.start_time_ref = time.perf_counter()  # Monotonic reference
-        self.acquisition_attempts = []  # Track acquisition requests/responses
-        self.last_game_state_time = None  # For update rate calculation
-        self.expected_snapshot_id = 0  # For packet loss detection
+        # Time tracking for accurate latency measurement
+        self.client_start_time = time.perf_counter()
+        self.server_time_offset = 0  # For clock synchronization
         
+        # Acquisition tracking for RTT measurement
+        self.acquisition_attempts = []
+        
+        # Metrics
         self.metrics = {
             'latency_samples': [],
             'lost_packets': 0,
-            'critical_events': [],
             'update_intervals': [],
             'start_time': time.perf_counter()
         }
 
-        # --- STRICT PDF COMPLIANCE: Metrics Logging ---
+        # --- FIXED: Simplified CSV Logging ---
         pid = os.getpid()
-        # FIXED: Match the number of columns with what we're logging
-        self.csv_logger = GameLogger(f"client_log_{pid}.csv", 
-            ["client_id", "snapshot_id", "seq_num", "server_timestamp_ms", 
-             "recv_time_ms", "latency_ms", "render_x", "render_y",
-             "is_critical", "cell_id", "success"])
+        # FIXED: Only log essential data for latency and position analysis
+        self.csv_logger = GameLogger(f"client_data_{pid}.csv", 
+            ["client_id", "snapshot_id", "seq_num", 
+             "recv_time_ms", "latency_ms", "render_x", "render_y"])
 
     def connect_to_server(self):
         try:
@@ -110,7 +94,6 @@ class GridClashUDPClient:
             
             start_time = time.time()
             while time.time() - start_time < 5:
-                
                 try:
                     data, addr = self.client_socket.recvfrom(65536)
                     message = GridClashBinaryProtocol.decode_message(data)
@@ -119,7 +102,8 @@ class GridClashUDPClient:
                         if self.player_id and "unknown" not in self.player_id:
                             print(f"[OK] Connected! Assigned ID: {self.player_id}")
                             return True
-                except: continue
+                except:
+                    continue
             return False
         except Exception as e:
             print(f"[ERROR] Connection failed: {e}")
@@ -135,14 +119,15 @@ class GridClashUDPClient:
         while self.running:
             try:
                 data, addr = self.client_socket.recvfrom(65536)
-                recv_time = time.time()
+                recv_time = time.perf_counter()  # Use perf_counter for accurate timing
                 message = GridClashBinaryProtocol.decode_message(data)
                 
                 if message:
                     packet_count += 1
                     # Debug: print every 20th packet
                     if packet_count % 20 == 0:
-                        msg_type_name = GridClashBinaryProtocol.get_message_type_name(message['header']['msg_type'])
+                        msg_type_name = GridClashBinaryProtocol.get_message_type_name(
+                            message['header']['msg_type'])
                         print(f"[CLIENT {self.player_id}] Received packet {packet_count}, type: {msg_type_name}")
                     
                     self.handle_server_message(message, recv_time)
@@ -158,147 +143,74 @@ class GridClashUDPClient:
         payload = message['payload']
         msg_type = header['msg_type']
         
-        # Store last payload for redundancy
-        if not hasattr(self, 'last_received_payload'):
-            self.last_received_payload = None
-        
-        # Track update time for interpolation
-        if msg_type == GridClashBinaryProtocol.MSG_GAME_STATE:
-            self.last_update_time = time.perf_counter()
+        # 1. FIXED: Calculate accurate latency
+        if 'server_timestamp' in header:
+            # Server timestamp is in milliseconds since server start
+            server_time_ms = header['server_timestamp']
+            client_time_ms = (recv_time - self.client_start_time) * 1000
             
-            # Apply redundancy if payload seems incomplete
-            if self.last_received_payload:
-                payload = self._apply_redundancy(payload, self.last_received_payload)
-            self.last_received_payload = payload.copy()
-        
-        # 1. FIXED: Metrics Logging with monotonic time
-        server_elapsed_ms = header['timestamp']  # Monotonic time from server
-        client_elapsed_ms = int((time.perf_counter() - self.start_time_ref) * 1000)
-        
-        # Calculate real RTT latency
-        latency_ms = client_elapsed_ms - server_elapsed_ms
-        
-        # Handle edge cases
-        if latency_ms < 0:
-            # Clock skew or packet reordering - use minimal value
+            # One-way latency estimate (half RTT)
+            # For critical events, we'll use actual RTT from acquisition attempts
+            latency_ms = (client_time_ms - server_time_ms)
+            
+            # For game state updates, estimate one-way latency
+            # This is reasonable if clocks are roughly synchronized
+            if latency_ms < 0:
+                latency_ms = 1  # Minimum 1ms
+            elif latency_ms > 5000:
+                latency_ms = 5000  # Cap at 5 seconds
+        else:
+            # Fallback if no server timestamp
             latency_ms = 1
-        elif latency_ms > 10000:  # Unreasonably high (10 seconds)
-            latency_ms = 10000  # Cap it
+        
+        # For acquisition responses, use actual RTT
+        if msg_type == GridClashBinaryProtocol.MSG_ACQUIRE_RESPONSE:
+            # Find matching acquisition request for accurate RTT
+            for attempt in self.acquisition_attempts:
+                if (attempt['cell_id'] == payload.get('cell_id') and 
+                    not attempt['response_received'] and
+                    attempt['seq_num'] == header.get('seq_num', 0)):
+                    
+                    actual_rtt = (recv_time - attempt['request_time']) * 1000
+                    latency_ms = actual_rtt / 2  # One-way latency
+                    
+                    attempt['response_time'] = recv_time
+                    attempt['response_received'] = True
+                    attempt['success'] = payload.get('success', False)
+                    attempt['latency_ms'] = actual_rtt
+                    
+                    print(f"[CLIENT] Acquisition RTT: {actual_rtt:.1f}ms, One-way: {latency_ms:.1f}ms")
+                    break
         
         # Track latency samples
         self.metrics['latency_samples'].append(latency_ms)
-        
-        # Keep only last 100 samples to avoid memory issues
         if len(self.metrics['latency_samples']) > 100:
             self.metrics['latency_samples'].pop(0)
         
-        # Log to CSV (Strict Phase 2 Format) - ADDED CRITICAL EVENT TRACKING
-        p1_render = self.render_positions.get('player_1', [0, 0])
-        
-        # Avoid crashing if we don't have an ID yet
-        log_id = self.player_id if self.player_id else "unknown"
-        
-        # Track if this is a critical event (acquisition response)
-        is_critical_event = msg_type == GridClashBinaryProtocol.MSG_ACQUIRE_RESPONSE
-        
-        # Get sequence info for tracking
-        seq_info = {
-            'msg_type': msg_type,
-            'snapshot_id': header['snapshot_id'],
-            'seq_num': header['seq_num'],
-            'latency': latency_ms,
-            'timestamp': time.perf_counter()
-        }
-        
-        # Track acquisition response timing
-        if is_critical_event and payload:
-            cell_id = payload.get('cell_id', 'unknown')
-            success = payload.get('success', False)
-            
-            # Find matching acquisition request
-            for attempt in self.acquisition_attempts:
-                if (attempt['cell_id'] == cell_id and 
-                    not attempt['response_received'] and
-                    attempt['seq_num'] == header['seq_num']):
-                    
-                    attempt['response_time'] = time.perf_counter()
-                    attempt['response_received'] = True
-                    attempt['success'] = success
-                    attempt['latency_ms'] = latency_ms
-                    
-                    print(f"[CLIENT] Acquisition response for cell {cell_id}: "
-                        f"success={success}, latency={latency_ms}ms")
-                    break
-        
-        # Log to CSV with enhanced metrics - FIXED: Now matches 11 columns
+        # 2. FIXED: Simplified CSV Logging
         try:
+            p1_render = self.render_positions.get('player_1', [0, 0])
+            log_id = self.player_id if self.player_id else "unknown"
+            
             self.csv_logger.log([
                 log_id,
-                header['snapshot_id'],
-                header['seq_num'],
-                server_elapsed_ms,
-                client_elapsed_ms,
-                latency_ms,
-                p1_render[0], 
-                p1_render[1],
-                1 if is_critical_event else 0,  # is_critical
-                payload.get('cell_id', 'none') if is_critical_event else 'none',
-                1 if (is_critical_event and payload.get('success', False)) else 0  # success
+                header.get('snapshot_id', 0),
+                header.get('seq_num', 0),
+                int((recv_time - self.client_start_time) * 1000),  # recv_time_ms
+                int(latency_ms),  # latency_ms
+                p1_render[0],  # render_x
+                p1_render[1]   # render_y
             ])
         except Exception as e:
             print(f"[ERROR] Failed to log CSV: {e}")
         
-        # Also log to special critical events CSV if needed
-        if is_critical_event:
-            if not hasattr(self, 'critical_events_logger'):
-                self.critical_events_logger = GameLogger(
-                    f"critical_events_{self.player_id}.csv",
-                    ["client_id", "cell_id", "request_time", "response_time", 
-                    "latency_ms", "success", "snapshot_id", "seq_num"]
-                )
-            
-            # Try to find matching request
-            request_time = None
-            for attempt in self.acquisition_attempts:
-                if attempt['cell_id'] == payload.get('cell_id') and attempt['response_received']:
-                    request_time = attempt['request_time']
-                    break
-            
-            self.critical_events_logger.log([
-                log_id,
-                payload.get('cell_id', 'unknown'),
-                request_time if request_time else time.perf_counter() - (latency_ms/1000),
-                time.perf_counter(),
-                latency_ms,
-                1 if payload.get('success', False) else 0,
-                header['snapshot_id'],
-                header['seq_num']
-            ])
-        
-        # 2. Reliability (Handle ACKs)
-        ack_seq = None
-        if msg_type == GridClashBinaryProtocol.MSG_ACK:
-            ack_seq = payload.get('acked_seq')
-        elif msg_type == GridClashBinaryProtocol.MSG_ACQUIRE_RESPONSE:
-            # Implicit ACK - send acknowledgment back
-            try:
-                ack_msg = GridClashBinaryProtocol.encode_ack(header['seq_num'])
-                self.client_socket.sendto(ack_msg, self.server_address)
-            except Exception as e:
-                print(f"[ERROR] Failed to send ACK: {e}")
-                # Silent fail for now
-        
-        if ack_seq and ack_seq in self.pending_requests:
-            del self.pending_requests[ack_seq]
-        
         # 3. Track update rate statistics
-        current_time = time.perf_counter()
         if msg_type == GridClashBinaryProtocol.MSG_GAME_STATE:
+            current_time = time.perf_counter()
             if self.last_game_state_time:
-                interval = (current_time - self.last_game_state_time) * 1000  # Convert to ms
+                interval = (current_time - self.last_game_state_time) * 1000
                 self.update_intervals.append(interval)
                 
-                # Keep last 200 samples
                 if len(self.update_intervals) > 200:
                     self.update_intervals.pop(0)
                 
@@ -306,24 +218,21 @@ class GridClashUDPClient:
                 if len(self.update_intervals) % 100 == 0:
                     avg_interval = sum(self.update_intervals) / len(self.update_intervals)
                     rate = 1000.0 / avg_interval if avg_interval > 0 else 0
-                    print(f"[CLIENT {self.player_id}] Update rate: {rate:.1f} Hz, "
-                        f"Latency: {latency_ms}ms, Jitter: {self.calculate_jitter():.1f}ms")
+                    avg_latency = sum(self.metrics['latency_samples'][-50:]) / min(50, len(self.metrics['latency_samples']))
+                    print(f"[CLIENT {self.player_id}] Update: {rate:.1f}Hz, Latency: {avg_latency:.1f}ms")
             
             self.last_game_state_time = current_time
         
-        # 4. Game Logic (existing code with minor fixes)
+        # 4. Game Logic
         if msg_type == GridClashBinaryProtocol.MSG_WELCOME:
             self.player_id = payload.get('player_id')
             print(f"[CLIENT] Assigned player ID: {self.player_id}")
             
             if payload: 
-                # Clear existing grid and update with new data
                 self.game_data['grid'] = {}
                 self.game_data.update(payload)
                 
-                # Ensure grid data is properly loaded
                 if 'grid' in payload:
-                    # Copy all grid cells
                     for cell_id, cell_data in payload['grid'].items():
                         self.game_data['grid'][cell_id] = cell_data.copy()
                         
@@ -332,7 +241,6 @@ class GridClashUDPClient:
                     for pid, pos in self.target_positions.items():
                         self.render_positions[pid] = list(pos)
                         
-                # Initialize last_target_pos if not exists
                 if not hasattr(self, 'last_target_pos'):
                     self.last_target_pos = {}
                     
@@ -345,31 +253,26 @@ class GridClashUDPClient:
         elif msg_type == GridClashBinaryProtocol.MSG_GAME_STATE:
             snapshot_id = header['snapshot_id']
             
-            # Skip old updates but allow some tolerance for out-of-order
-            if snapshot_id < self.last_snapshot_id - 5:  # Allow 5 packet reorder
-                print(f"[CLIENT] Skipping very old snapshot: {snapshot_id} (current: {self.last_snapshot_id})")
+            if snapshot_id < self.last_snapshot_id - 5:
+                print(f"[CLIENT] Skipping old snapshot: {snapshot_id} (current: {self.last_snapshot_id})")
                 return 
                 
             self.last_snapshot_id = max(self.last_snapshot_id, snapshot_id)
 
             if payload:
-                # Update game state
                 if 'players' in payload:
                     self.game_data['players'] = payload.get('players', {})
                     
                 self.game_data['game_over'] = payload.get('game_over', False)
                 self.game_data['winner_id'] = payload.get('winner_id', None)
                 
-                # Delta Decoding - update grid with changes
                 if 'grid' in payload:
                     for cell_id, cell_data in payload.get('grid', {}).items():
                         self.game_data['grid'][cell_id] = cell_data
                 
-                # Update player positions (most critical for interpolation)
                 if 'player_positions' in payload:
                     new_positions = payload['player_positions']
                     for pid, pos in new_positions.items():
-                        # Store old position for velocity calculation
                         if pid in self.target_positions:
                             if not hasattr(self, 'last_target_pos'):
                                 self.last_target_pos = {}
@@ -377,21 +280,9 @@ class GridClashUDPClient:
                         
                         self.target_positions[pid] = pos
                         
-                        # Initialize render position if not exists
                         if pid not in self.render_positions:
                             self.render_positions[pid] = list(pos)
                 
-                # Check for redundancy data and use it if helpful
-                if 'redundancy' in payload:
-                    redundancy = payload['redundancy']
-                    prev_positions = redundancy.get('prev_player_positions', {})
-                    
-                    # Use redundant positions if current ones are missing for some players
-                    for pid in prev_positions:
-                        if pid not in self.target_positions:
-                            self.target_positions[pid] = prev_positions[pid]
-                            print(f"[CLIENT] Used redundant position for {pid}")
-                            
             # Track packet loss
             if hasattr(self, 'expected_snapshot_id'):
                 if snapshot_id > self.expected_snapshot_id + 1:
@@ -408,7 +299,7 @@ class GridClashUDPClient:
                 if 'grid' not in self.game_data: 
                     self.game_data['grid'] = {}
                 self.game_data['grid'][cell_id] = {'owner_id': owner_id}
-                print(f"[CLIENT] Cell {cell_id} acquired by {owner_id} (latency: {latency_ms}ms)")
+                print(f"[CLIENT] Cell {cell_id} acquired by {owner_id}")
             else:
                 cell_id = payload['cell_id']
                 owner_id = payload.get('owner_id')
@@ -419,11 +310,9 @@ class GridClashUDPClient:
             self.game_data['winner_id'] = payload.get('winner_id')
             print(f"[CLIENT] Game Over! Winner: {self.game_data['winner_id']}")
             
-            # Show final scores
             if 'scoreboard' in payload:
                 print(f"Final scores: {payload['scoreboard']}")
             
-            # Log final statistics
             if self.metrics['latency_samples']:
                 avg_latency = sum(self.metrics['latency_samples']) / len(self.metrics['latency_samples'])
                 print(f"Average latency: {avg_latency:.1f}ms")
@@ -431,20 +320,6 @@ class GridClashUDPClient:
         elif msg_type == GridClashBinaryProtocol.MSG_HEARTBEAT:
             # Server heartbeat - just acknowledge
             pass
-
-    def _apply_redundancy(self, payload, last_received_payload):
-        """Apply redundancy data from previous packet if current is incomplete"""
-        return GridClashBinaryProtocol.use_redundancy_if_needed(payload, last_received_payload)
-
-    def calculate_jitter(self):
-        """Calculate jitter (variation in inter-arrival times)"""
-        if len(self.update_intervals) < 2:
-            return 0.0
-        
-        # Calculate standard deviation of update intervals
-        mean = sum(self.update_intervals) / len(self.update_intervals)
-        variance = sum((x - mean) ** 2 for x in self.update_intervals) / len(self.update_intervals)
-        return variance ** 0.5
 
     def update_interpolation(self):
         current_time = time.time()
@@ -459,7 +334,6 @@ class GridClashUDPClient:
             
             if pid == self.player_id:
                 # For local player, use prediction
-                # Calculate velocity for better prediction
                 if hasattr(self, 'last_target_pos') and pid in self.last_target_pos:
                     old_pos = self.last_target_pos[pid]
                     time_diff = current_time - self.last_update_time
@@ -469,26 +343,23 @@ class GridClashUDPClient:
                                 (target[1] - old_pos[1]) / time_diff]
                         
                         # Predict current position
-                        pred_x = target[0] + velocity[0] * 0.025  # Predict 25ms ahead
+                        pred_x = target[0] + velocity[0] * 0.025
                         pred_y = target[1] + velocity[1] * 0.025
                         self.render_positions[pid] = [pred_x, pred_y]
                 
                 self.last_target_pos[pid] = list(target)
                 continue
             
-            # For other players, use faster interpolation
-            # Reduce smoothing factor for faster response
-            fast_smoothing = 0.4  # Increased from 0.2 for faster response
+            # For other players, use interpolation
+            fast_smoothing = 0.4
             
             dx = target[0] - current[0]
             dy = target[1] - current[1]
             
-            # If close enough, snap to position
             if abs(dx) < 0.1 and abs(dy) < 0.1:
                 current[0] = target[0]
                 current[1] = target[1]
             else:
-                # Faster interpolation
                 current[0] += dx * fast_smoothing
                 current[1] += dy * fast_smoothing
 
@@ -496,7 +367,8 @@ class GridClashUDPClient:
         if not self.player_id or "unknown" in self.player_id: 
             if not self.headless:
                 for event in pygame.event.get():
-                    if event.type == pygame.QUIT: self.running = False
+                    if event.type == pygame.QUIT:
+                        self.running = False
             return
 
         # --- BOT LOGIC (For Headless/Testing) ---
@@ -509,7 +381,9 @@ class GridClashUDPClient:
         keys = pygame.key.get_pressed()
         
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: self.running = False; return
+            if event.type == pygame.QUIT:
+                self.running = False
+                return
             elif event.type == pygame.KEYDOWN:
                 if event.key in [pygame.K_SPACE, pygame.K_RETURN]:
                     pos = self.my_predicted_pos
@@ -521,18 +395,22 @@ class GridClashUDPClient:
             original = list(current_pos)
             
             if keys[pygame.K_w] or keys[pygame.K_UP]: 
-                if current_pos[0] > 0: current_pos[0] -= 1
+                if current_pos[0] > 0:
+                    current_pos[0] -= 1
             elif keys[pygame.K_s] or keys[pygame.K_DOWN]: 
-                if current_pos[0] < self.grid_size - 1: current_pos[0] += 1
+                if current_pos[0] < self.grid_size - 1:
+                    current_pos[0] += 1
             elif keys[pygame.K_a] or keys[pygame.K_LEFT]: 
-                if current_pos[1] > 0: current_pos[1] -= 1
+                if current_pos[1] > 0:
+                    current_pos[1] -= 1
             elif keys[pygame.K_d] or keys[pygame.K_RIGHT]: 
-                if current_pos[1] < self.grid_size - 1: current_pos[1] += 1
-            elif keys[pygame.K_SPACE]:  # Continuous acquisition with Space
+                if current_pos[1] < self.grid_size - 1:
+                    current_pos[1] += 1
+            elif keys[pygame.K_SPACE]:
                 cell_id = f"{int(current_pos[0])}_{int(current_pos[1])}"
                 self.send_acquire_request(self.player_id, cell_id)
                 self.last_action_time = current_time
-                return  # Skip movement if acquiring
+                return
             
             if current_pos != original:
                 self.my_predicted_pos = current_pos
@@ -548,10 +426,14 @@ class GridClashUDPClient:
             current_pos = list(self.my_predicted_pos)
             move_dir = random.choice(['up', 'down', 'left', 'right', 'none'])
             
-            if move_dir == 'up' and current_pos[0] > 0: current_pos[0] -= 1
-            elif move_dir == 'down' and current_pos[0] < self.grid_size - 1: current_pos[0] += 1
-            elif move_dir == 'left' and current_pos[1] > 0: current_pos[1] -= 1
-            elif move_dir == 'right' and current_pos[1] < self.grid_size - 1: current_pos[1] += 1
+            if move_dir == 'up' and current_pos[0] > 0:
+                current_pos[0] -= 1
+            elif move_dir == 'down' and current_pos[0] < self.grid_size - 1:
+                current_pos[0] += 1
+            elif move_dir == 'left' and current_pos[1] > 0:
+                current_pos[1] -= 1
+            elif move_dir == 'right' and current_pos[1] < self.grid_size - 1:
+                current_pos[1] += 1
             
             self.my_predicted_pos = current_pos
             self.send_player_move(self.player_id, current_pos)
@@ -566,23 +448,30 @@ class GridClashUDPClient:
 
     def send_acquire_request(self, player_id, cell_id):
         self.sequence_num += 1
-        msg = GridClashBinaryProtocol.encode_acquire_request(player_id, cell_id, time.time(), self.sequence_num)
+        request_time = time.perf_counter()  # Store exact send time
         
-        # Reliability: Store for retry
-        self.pending_requests[self.sequence_num] = {
-            'data': msg, 'time': time.time(), 'retries': 0
-        }
-        
-        # Track acquisition attempt
+        # Track acquisition attempt for RTT measurement
         self.acquisition_attempts.append({
             'cell_id': cell_id,
-            'request_time': time.time(),
+            'request_time': request_time,
             'seq_num': self.sequence_num,
             'response_received': False,
             'response_time': None,
             'success': False,
             'latency_ms': None
         })
+        
+        # Keep only recent attempts
+        if len(self.acquisition_attempts) > 20:
+            self.acquisition_attempts.pop(0)
+        
+        msg = GridClashBinaryProtocol.encode_acquire_request(
+            player_id, cell_id, time.time(), self.sequence_num)
+        
+        # Reliability: Store for retry
+        self.pending_requests[self.sequence_num] = {
+            'data': msg, 'time': time.time(), 'retries': 0
+        }
         
         try: 
             self.client_socket.sendto(msg, self.server_address)
@@ -616,19 +505,19 @@ class GridClashUDPClient:
             return False
 
     def draw_grid(self):
-        if not self.screen: return
+        if not self.screen:
+            return
+            
         for row in range(self.grid_size):
             for col in range(self.grid_size):
                 cell_id = f"{row}_{col}"
                 cell_color = self.COLORS['unclaimed']
                 
-                # Check if cell is owned and get owner ID
                 if 'grid' in self.game_data and cell_id in self.game_data['grid']:
                     cell_data = self.game_data['grid'][cell_id]
                     if 'owner_id' in cell_data:
                         owner = cell_data['owner_id']
                         
-                        # Map player ID to color
                         if owner == 'player_1':
                             cell_color = self.COLORS['player1']
                         elif owner == 'player_2':
@@ -638,16 +527,15 @@ class GridClashUDPClient:
                         elif owner == 'player_4':
                             cell_color = self.COLORS['player4']
                         else:
-                            # Fallback: use dark gray for unknown owners
                             cell_color = self.COLORS['dark_gray']
                 
-                rect = pygame.Rect(col*self.cell_size, row*self.cell_size, self.cell_size, self.cell_size)
+                rect = pygame.Rect(col*self.cell_size, row*self.cell_size, 
+                                 self.cell_size, self.cell_size)
                 pygame.draw.rect(self.screen, cell_color, rect)
                 pygame.draw.rect(self.screen, self.COLORS['grid_line'], rect, 1)
         
         for pid, pos in self.render_positions.items():
             r, c = pos[0], pos[1]
-            # Map player ID to color for cursor
             if pid == 'player_1':
                 color = self.COLORS['player1']
             elif pid == 'player_2':
@@ -659,12 +547,15 @@ class GridClashUDPClient:
             else:
                 color = self.COLORS['white']
                 
-            cursor_rect = pygame.Rect(c * self.cell_size, r * self.cell_size, self.cell_size, self.cell_size)
+            cursor_rect = pygame.Rect(c * self.cell_size, r * self.cell_size, 
+                                    self.cell_size, self.cell_size)
             width = 3 if pid != self.player_id else 5
             pygame.draw.rect(self.screen, color, cursor_rect, width)
 
     def draw_ui(self):
-        if not self.screen: return
+        if not self.screen:
+            return
+            
         panel = pygame.Rect(self.grid_size * self.cell_size, 0, 450, self.screen_height)
         pygame.draw.rect(self.screen, self.COLORS['dark_gray'], panel)
         
@@ -686,16 +577,20 @@ class GridClashUDPClient:
         
         # Draw latency info
         if self.metrics['latency_samples']:
-            avg = sum(self.metrics['latency_samples'])/len(self.metrics['latency_samples'])
-            txt = self.font.render(f"Ping: {avg:.0f}ms", True, (255,255,255))
-            self.screen.blit(txt, (self.grid_size * self.cell_size + 20, 150))
+            recent_samples = self.metrics['latency_samples'][-20:]  # Last 20 samples
+            if recent_samples:
+                avg = sum(recent_samples) / len(recent_samples)
+                txt = self.font.render(f"Ping: {avg:.0f}ms", True, (255,255,255))
+                self.screen.blit(txt, (self.grid_size * self.cell_size + 20, 150))
         
         # Draw update rate
         if self.update_intervals:
-            avg_interval = sum(self.update_intervals) / len(self.update_intervals)
-            rate = 1.0 / avg_interval if avg_interval > 0 else 0
-            txt = self.font.render(f"Update Rate: {rate:.1f} Hz", True, (255,255,255))
-            self.screen.blit(txt, (self.grid_size * self.cell_size + 20, 180))
+            recent_intervals = self.update_intervals[-20:]  # Last 20 intervals
+            if recent_intervals:
+                avg_interval = sum(recent_intervals) / len(recent_intervals)
+                rate = 1000.0 / avg_interval if avg_interval > 0 else 0
+                txt = self.font.render(f"Update Rate: {rate:.1f} Hz", True, (255,255,255))
+                self.screen.blit(txt, (self.grid_size * self.cell_size + 20, 180))
         
         # Draw game status
         if self.game_data['game_over']:
@@ -716,7 +611,8 @@ class GridClashUDPClient:
         
         self.headless = "--headless" in sys.argv
         if not self.headless:
-            if not self.initialize_graphics(): return
+            if not self.initialize_graphics():
+                return
         else:
             print(f"[{self.player_id}] Running in HEADLESS BOT mode")
         
@@ -733,7 +629,7 @@ class GridClashUDPClient:
                 self.send_heartbeat()
                 last_hb = time.time()
 
-            # Retry Logic (100ms interval for <200ms delivery req)
+            # Retry Logic
             current_time = time.time()
             to_delete = []
             for seq, req in self.pending_requests.items():
@@ -743,7 +639,8 @@ class GridClashUDPClient:
                             self.client_socket.sendto(req['data'], self.server_address)
                             req['time'] = current_time
                             req['retries'] += 1
-                        except: pass
+                        except:
+                            pass
                     else: 
                         to_delete.append(seq)
             
@@ -757,8 +654,8 @@ class GridClashUDPClient:
                 pygame.display.flip()
                 clock.tick(60)
             else:
-                # Save CPU in headless mode but still be responsive
-                time.sleep(0.005)  # 5ms sleep for better responsiveness
+                # Save CPU in headless mode
+                time.sleep(0.005)
                 
         if self.csv_logger:
             self.csv_logger.close()
