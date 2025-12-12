@@ -6,6 +6,7 @@ import sys
 import shutil
 import platform
 import argparse
+import threading
 
 # Configuration
 SERVER_SCRIPT = "server_optimized.py"
@@ -14,6 +15,9 @@ PYTHON_CMD = sys.executable
 DURATION = 40
 
 IS_LINUX = platform.system() == "Linux"
+
+# Global for tshark process
+tshark_process = None
 
 def simple_cleanup():
     """Simple cleanup that won't kill our own process"""
@@ -50,206 +54,190 @@ def simple_cleanup():
     time.sleep(1)
     print("   ✅ Cleanup done")
 
-def apply_netem_working(loss=0, delay=0, jitter=0):
-    """Apply netem to enp0s3 - this WILL work!"""
-    interface = "enp0s3"
+def start_wireshark_capture(test_name, interface="lo"):
+    """Start tshark capture in background"""
+    global tshark_process
     
-    print(f"📡 Applying netem to {interface}")
+    # Create captures directory
+    os.makedirs("captures", exist_ok=True)
     
-    # Clean FIRST
-    cleanup_cmds = [
-        f"sudo tc qdisc del dev {interface} root 2>/dev/null",
-        f"sudo tc qdisc del dev {interface} ingress 2>/dev/null",
-        f"sudo iptables -F 2>/dev/null",
-        f"sudo iptables -t mangle -F 2>/dev/null"
+    timestamp = int(time.time())
+    pcap_file = f"captures/{test_name}_{timestamp}.pcap"
+    
+    print(f"\n📡 Starting Wireshark capture on {interface}...")
+    print(f"   Saving to: {pcap_file}")
+    
+    # Build tshark command
+    tshark_cmd = [
+        "sudo", "tshark",
+        "-i", interface,
+        "-f", "udp port 5555",  # Capture only our game traffic
+        "-w", pcap_file,
+        "-q"  # Quiet mode
     ]
     
-    for cmd in cleanup_cmds:
-        subprocess.run(cmd, shell=True, 
-                      stdout=subprocess.DEVNULL, 
-                      stderr=subprocess.DEVNULL)
+    try:
+        tshark_process = subprocess.Popen(
+            tshark_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        print(f"   ✅ Capture started (PID: {tshark_process.pid})")
+        time.sleep(2)  # Give tshark time to start
+        return pcap_file
+    except Exception as e:
+        print(f"   ❌ Failed to start capture: {e}")
+        return None
+
+def stop_wireshark_capture():
+    """Stop tshark capture"""
+    global tshark_process
     
-    time.sleep(1)
+    if tshark_process and tshark_process.poll() is None:
+        print("\n📡 Stopping Wireshark capture...")
+        try:
+            # Send SIGINT to gracefully stop tshark
+            tshark_process.send_signal(signal.SIGINT)
+            tshark_process.wait(timeout=5)
+            print("   ✅ Capture stopped")
+        except:
+            try:
+                tshark_process.terminate()
+                tshark_process.wait(timeout=2)
+            except:
+                try:
+                    tshark_process.kill()
+                except:
+                    pass
+        tshark_process = None
+        time.sleep(1)
+
+def analyze_capture(pcap_file, log_dir):
+    """Analyze pcap file and extract metrics"""
+    if not os.path.exists(pcap_file):
+        print(f"   ❌ PCAP file not found: {pcap_file}")
+        return
     
-    # Apply delay (MOST IMPORTANT FOR YOUR TEST)
-    if delay > 0:
-        # EXACT command from PDF Appendix A
-        if jitter > 0:
-            cmd = f"sudo tc qdisc add dev {interface} root netem delay {delay}ms {jitter}ms"
-            print(f"Running: {cmd}  (PDF Example: delay 100ms 10ms)")
-        else:
-            cmd = f"sudo tc qdisc add dev {interface} root netem delay {delay}ms"
-            print(f"Running: {cmd}")
+    print(f"\n📊 Analyzing capture: {os.path.basename(pcap_file)}")
+    
+    # 1. Count packets
+    try:
+        count_cmd = ["tshark", "-r", pcap_file, "-Y", "udp.port == 5555", "-z", "io,stat,0"]
+        result = subprocess.run(count_cmd, capture_output=True, text=True)
         
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            print(f"✅ SUCCESS! Applied {delay}ms delay to {interface}")
-            
-            # Verify
-            check = subprocess.run(f"sudo tc qdisc show dev {interface}", 
-                                 shell=True, capture_output=True, text=True)
-            print(f"Verification: {check.stdout.strip()}")
-            
-            # Quick test to confirm it's working
-            test_delay_applied(interface, delay)
-            return True
-        else:
-            print(f"❌ Failed: {result.stderr}")
-            return False
+        # Extract packet count from output
+        for line in result.stdout.split('\n'):
+            if "|" in line and "Number" not in line and "Duration" not in line:
+                parts = line.split('|')
+                if len(parts) > 2:
+                    packet_count = parts[2].strip()
+                    print(f"   Total packets: {packet_count}")
+                    
+                    # Save to stats file
+                    stats_file = os.path.join(log_dir, "capture_stats.txt")
+                    with open(stats_file, 'w') as f:
+                        f.write(f"Capture File: {os.path.basename(pcap_file)}\n")
+                        f.write(f"Total Packets: {packet_count}\n")
+                        f.write(f"Filter: udp port 5555\n")
+                        f.write(f"Interface: lo\n")
+    except Exception as e:
+        print(f"   ❌ Error counting packets: {e}")
     
-    # Apply loss if needed
+    # 2. Extract packet timing info to CSV
+    try:
+        csv_file = os.path.join(log_dir, "packet_timing.csv")
+        analysis_cmd = [
+            "tshark",
+            "-r", pcap_file,
+            "-T", "fields",
+            "-E", "separator=,",
+            "-E", "header=y",
+            "-e", "frame.time_epoch",
+            "-e", "ip.src",
+            "-e", "ip.dst",
+            "-e", "udp.srcport",
+            "-e", "udp.dstport",
+            "-e", "udp.length",
+            "-e", "frame.time_delta",
+            "-Y", "udp.port == 5555"
+        ]
+        
+        with open(csv_file, 'w') as f:
+            result = subprocess.run(analysis_cmd, stdout=f, stderr=subprocess.PIPE, text=True)
+        
+        if os.path.getsize(csv_file) > 100:
+            print(f"   ✅ Packet timing CSV: {csv_file}")
+        else:
+            print(f"   ⚠️  Packet timing CSV empty or small")
+            
+    except Exception as e:
+        print(f"   ❌ Error creating timing CSV: {e}")
+    
+    # 3. Move pcap to results directory
+    try:
+        dest_pcap = os.path.join(log_dir, os.path.basename(pcap_file))
+        shutil.move(pcap_file, dest_pcap)
+        print(f"   ✅ PCAP moved to: {dest_pcap}")
+    except Exception as e:
+        print(f"   ❌ Error moving PCAP: {e}")
+
+def apply_netem_working(interface, loss=0, delay=0, jitter=0):
+    """Netem that actually works"""
+    # ALWAYS use these exact commands that work:
+    
     if loss > 0:
-        cmd = f"sudo tc qdisc add dev {interface} root netem loss {loss}%"
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-        
+        # Use iptables for loss (REAL network layer)
+        prob = loss / 100.0
+        # FIXED: Apply loss to BOTH directions for UDP traffic on port 5555
+        cmd1 = f"sudo iptables -A INPUT -p udp --dport 5555 -m statistic --mode random --probability {prob} -j DROP"
+        cmd2 = f"sudo iptables -A OUTPUT -p udp --sport 5555 -m statistic --mode random --probability {prob} -j DROP"
+        subprocess.run(cmd1, shell=True)
+        subprocess.run(cmd2, shell=True)
+        print(f"✅ REAL packet loss: {loss}% via iptables (both directions)")
+    
+    if delay > 0:
+        # Use tc for delay (REAL network layer)
+        # FIXED: Apply delay to BOTH directions by adding it to ALL loopback traffic
+        cmd = f"sudo tc qdisc add dev {interface} root netem delay {delay}ms"
+        result = subprocess.run(cmd, shell=True, capture_output=True)
         if result.returncode == 0:
-            print(f"✅ Applied {loss}% loss")
-            return True
+            print(f"✅ REAL delay: {delay}ms via tc")
+        else:
+            print(f"❌ tc failed: {result.stderr}")
+            # Fallback: socket options for delay
+            os.environ['SOCKET_DELAY'] = str(delay)
+            print(f"⚠️  Using socket-level delay simulation")
     
     return True
 
-
-def test_delay_applied(interface, expected_delay_ms):
-    """Quick test to verify delay is applied"""
-    print(f"\n🔍 Testing if {expected_delay_ms}ms delay is working...")
-    
-    try:
-        import socket
-        import threading
-        
-        # Create a simple echo server
-        def echo_server():
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            sock.bind(('127.0.0.1', 9999))
-            sock.settimeout(2.0)
-            try:
-                data, addr = sock.recvfrom(1024)
-                sock.sendto(b"echo", addr)
-            except:
-                pass
-        
-        # Start echo server
-        server_thread = threading.Thread(target=echo_server, daemon=True)
-        server_thread.start()
-        time.sleep(0.5)
-        
-        # Send and measure RTT
-        client_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        client_sock.settimeout(2.0)
-        
-        start = time.time()
-        client_sock.sendto(b"test", ('127.0.0.1', 9999))
-        
-        try:
-            data, addr = client_sock.recvfrom(1024)
-            rtt_ms = (time.time() - start) * 1000
-            
-            # With netem delay, RTT should be ~2x the one-way delay
-            expected_rtt = expected_delay_ms * 2
-            
-            print(f"   Measured RTT: {rtt_ms:.1f}ms")
-            print(f"   Expected RTT with {expected_delay_ms}ms delay: ~{expected_rtt}ms")
-            
-            if rtt_ms > expected_rtt * 0.7:  # At least 70% of expected
-                print(f"   ✅ Netem delay is WORKING correctly!")
-            else:
-                print(f"   ⚠️  Delay may not be fully applied")
-                
-        except socket.timeout:
-            print(f"   ⚠️  Timeout - check if echo server received packet")
-            
-    except Exception as e:
-        print(f"   ⚠️  Test error: {e}")
-
-
-def simple_cleanup():
-    """Cleanup for enp0s3"""
-    print("\n🧹 Cleaning up enp0s3...")
-    
-    # Clean tc rules
-    try:
-        subprocess.run(['sudo', 'tc', 'qdisc', 'del', 'dev', 'enp0s3', 'root'], 
-                      stdout=subprocess.DEVNULL, 
-                      stderr=subprocess.DEVNULL,
-                      timeout=2)
-        print("   Cleaned tc rules from enp0s3")
-    except:
-        pass
-    
-    # Clean iptables rules
-    try:
-        subprocess.run(['sudo', 'iptables', '-F'], 
-                      stdout=subprocess.DEVNULL, 
-                      stderr=subprocess.DEVNULL,
-                      timeout=2)
-        subprocess.run(['sudo', 'iptables', '-t', 'mangle', '-F'],
-                      stdout=subprocess.DEVNULL,
-                      stderr=subprocess.DEVNULL,
-                      timeout=2)
-        print("   Cleaned iptables rules")
-    except:
-        pass
-    
-    # Clean old CSV files
-    for f in os.listdir("."):
-        if f.endswith(".csv") and os.path.isfile(f):
-            try:
-                os.remove(f)
-            except:
-                pass
-    
-    time.sleep(1)
-    print("   ✅ Cleanup done")
-
 def run_scenario(name, loss, delay, jitter):
-    """Run a single test scenario - FIXED"""
+    """Run a single test scenario - SIMPLIFIED"""
     print(f"\n{'='*60}")
     print(f"STARTING: {name}")
     print(f"Loss: {loss}%, Delay: {delay}ms")
     print(f"{'='*60}")
     
-    # Simple cleanup - BUT keep existing CSV files for now
-    print("\n🧹 Cleaning up...")
-    try:
-        subprocess.run(['sudo', 'tc', 'qdisc', 'del', 'dev', 'enp0s3', 'root'], 
-                      stdout=subprocess.DEVNULL, 
-                      stderr=subprocess.DEVNULL,
-                      timeout=2)
-        subprocess.run(['sudo', 'iptables', '-F'],
-                      stdout=subprocess.DEVNULL,
-                      stderr=subprocess.DEVNULL,
-                      timeout=2)
-    except:
-        pass
+    # Simple cleanup
+    simple_cleanup()
     
-    # Create results directory FIRST
+    # Create results directory
     timestamp = int(time.time())
     log_dir = f"results/{name}_{timestamp}"
     os.makedirs(log_dir, exist_ok=True)
-    print(f"📁 Results will be saved to: {log_dir}")
     
-    # Apply network configuration
-    apply_netem_working(loss, delay, jitter)
+    # Apply network configuration (software simulation)
+    apply_netem_working('lo', loss, delay, jitter)
     
-    # Clean any OLD CSV files in current directory
-    print("🧹 Cleaning old CSV files...")
-    for f in os.listdir("."):
-        if f.endswith(".csv") and os.path.isfile(f):
-            try:
-                os.remove(f)
-                print(f"   Removed: {f}")
-            except:
-                pass
-    
-    time.sleep(2)  # Give time for cleanup
+    # START WIRESHARK CAPTURE
+    pcap_file = start_wireshark_capture(name, interface="lo")
     
     # Start Server
     print(f"\n[1/3] Starting Server...")
     server_proc = subprocess.Popen([PYTHON_CMD, SERVER_SCRIPT],
                                    stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE)
-    time.sleep(5)  # Increased to 5 seconds for server to fully start
+    time.sleep(3)
     
     # Start 4 Clients
     print(f"[2/3] Starting 4 Clients...")
@@ -259,8 +247,8 @@ def run_scenario(name, loss, delay, jitter):
                                        stdout=subprocess.PIPE,
                                        stderr=subprocess.PIPE)
         clients.append(client_proc)
-        time.sleep(1)  # Increased to 1 second between clients
-        print(f"   Client {i+1} started (PID: {client_proc.pid})")
+        time.sleep(0.5)
+        print(f"   Client {i+1} started")
     
     # Run test
     print(f"\n[3/3] Running for {DURATION} seconds...")
@@ -271,37 +259,19 @@ def run_scenario(name, loss, delay, jitter):
             elapsed = int(time.time() - start_time)
             remaining = DURATION - elapsed
             print(f"\r⏱️  {elapsed:3d}s / {DURATION}s", end='', flush=True)
-            
-            # Check if CSV files are being created
-            if elapsed % 10 == 0:  # Every 10 seconds
-                csv_files = [f for f in os.listdir(".") if f.startswith("client_log_") and f.endswith(".csv")]
-                if csv_files:
-                    print(f"\n   Found {len(csv_files)} client log(s)")
-            
             time.sleep(0.5)
         print("\n   ✅ Test complete")
     except KeyboardInterrupt:
         print("\n\n⚠️  Test interrupted")
     
-    # Let processes flush their logs
-    print("\n🔄 Letting processes flush logs...")
-    time.sleep(3)
-    
-    # Cleanup - Stop processes GRACEFULLY
+    # Cleanup
     print(f"\n🧹 Stopping processes...")
     
-    # First, check what CSV files exist
-    print("📊 Checking for log files...")
-    all_files = os.listdir(".")
-    csv_files = [f for f in all_files if f.endswith(".csv")]
-    print(f"   Found {len(csv_files)} CSV files: {csv_files}")
-    
     # Stop clients
-    for i, client in enumerate(clients):
+    for client in clients:
         try:
-            print(f"   Stopping client {i+1}...")
             client.terminate()
-            client.wait(timeout=2)
+            client.wait(timeout=1)
         except:
             try:
                 client.kill()
@@ -310,90 +280,41 @@ def run_scenario(name, loss, delay, jitter):
     
     # Stop server
     try:
-        print("   Stopping server...")
         server_proc.terminate()
-        server_proc.wait(timeout=2)
+        server_proc.wait(timeout=1)
     except:
         try:
             server_proc.kill()
         except:
             pass
     
-    time.sleep(3)  # Extra time for file writing
+    time.sleep(2)
     
-    # Collect CSV files - FIXED VERSION
+    # STOP WIRESHARK CAPTURE
+    stop_wireshark_capture()
+    
+    # Analyze capture if it was created
+    if pcap_file and os.path.exists(pcap_file):
+        analyze_capture(pcap_file, log_dir)
+    
+    # Collect CSV files
     print(f"\n📂 Collecting results...")
     files_moved = 0
     
     for f in os.listdir("."):
-        if f.endswith(".csv"):
+        if f.endswith(".csv") and os.path.getsize(f) > 100:
             try:
-                src = f
-                dst = os.path.join(log_dir, f)
-                
-                # Check file size
-                file_size = os.path.getsize(src)
-                if file_size > 100:  # At least 100 bytes
-                    shutil.move(src, dst)
-                    files_moved += 1
-                    print(f"   📄 {f} ({file_size} bytes)")
-                else:
-                    print(f"   ⚠️  Skipping {f} (too small: {file_size} bytes)")
-                    # Still move it for debugging
-                    shutil.move(src, dst)
-                    
-            except Exception as e:
-                print(f"   ❌ Error moving {f}: {e}")
-    
-    # Also copy the test configuration
-    try:
-        config_content = f"Test: {name}\nLoss: {loss}%\nDelay: {delay}ms\nJitter: {jitter}ms\nDuration: {DURATION}s\nTimestamp: {timestamp}"
-        with open(os.path.join(log_dir, "test_config.txt"), "w") as f:
-            f.write(config_content)
-        print(f"   📝 test_config.txt")
-        files_moved += 1
-    except:
-        pass
+                shutil.move(f, os.path.join(log_dir, f))
+                files_moved += 1
+                print(f"   📄 {f}")
+            except:
+                pass
     
     print(f"\n✅ {name} completed!")
     print(f"   Files saved to: {log_dir}")
-    print(f"   Total files: {files_moved}")
-    
-    # Verify logs exist
-    verify_logs_exist(log_dir)
+    print(f"   CSV files: {files_moved}")
     
     return log_dir
-
-
-def verify_logs_exist(log_dir):
-    """Verify that log files were created"""
-    print("\n🔍 Verifying logs...")
-    
-    if not os.path.exists(log_dir):
-        print(f"   ❌ Directory doesn't exist: {log_dir}")
-        return
-    
-    files = os.listdir(log_dir)
-    if not files:
-        print(f"   ❌ No files in {log_dir}")
-        return
-    
-    print(f"   Found {len(files)} files:")
-    for f in files:
-        filepath = os.path.join(log_dir, f)
-        size = os.path.getsize(filepath)
-        print(f"      {f}: {size} bytes")
-        
-        # Check if file has content
-        if size < 100 and f.endswith(".csv"):
-            print(f"      ⚠️  WARNING: {f} is very small")
-            # Show first few lines for debugging
-            try:
-                with open(filepath, 'r') as fp:
-                    lines = fp.readlines()
-                    print(f"      First 3 lines: {lines[:3]}")
-            except:
-                pass
 
 def main():
     """Main function"""
@@ -407,10 +328,22 @@ def main():
     DURATION = args.duration
     
     print("\n" + "="*60)
-    print("GRID CLASH TESTS - SIMPLIFIED")
+    print("GRID CLASH TESTS - WITH WIRESHARK CAPTURE")
     print("="*60)
     print(f"Duration: {DURATION}s per test")
     print("Using software network simulation")
+    print("Wireshark capture enabled on loopback interface")
+    
+    # Check if tshark is available
+    try:
+        result = subprocess.run(["tshark", "--version"], 
+                              capture_output=True, text=True)
+        if result.returncode == 0:
+            print("✅ tshark/Wireshark is available")
+        else:
+            print("⚠️  tshark not found, skipping packet capture")
+    except:
+        print("⚠️  tshark not found, skipping packet capture")
     
     scenarios = {
         "baseline": ("Baseline", 0, 0, 0),
@@ -422,6 +355,7 @@ def main():
     results = []
     
     os.makedirs("results", exist_ok=True)
+    os.makedirs("captures", exist_ok=True)
     
     if args.scenario == "all":
         for key, params in scenarios.items():
@@ -446,6 +380,7 @@ def main():
     if results:
         print(f"\nRun analysis: python analyze_result.py")
         print(f"Check results in: results/")
+        print(f"Check PCAP files in: captures/")
     
     print("\n" + "="*60)
 

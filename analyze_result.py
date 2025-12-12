@@ -29,12 +29,27 @@ def analyze_scenario(folder_path):
         return None
     
     try:
+        # Read server log - check column names
         df_server = pd.read_csv(server_file)
+        
+        # DEBUG: Print server columns to see what we have
+        print(f"  Server columns: {list(df_server.columns)}")
+        
         # Clean server data
         df_server = df_server.dropna()
         if df_server.empty:
             print("  [ERR] Empty server log after cleaning.")
             return None
+            
+        # Check if we have position columns
+        # The server logs might have different column names
+        position_columns = []
+        for col in df_server.columns:
+            if 'pos' in col.lower() or 'player' in col.lower():
+                position_columns.append(col)
+        
+        print(f"  Position columns found: {position_columns}")
+        
     except Exception as e:
         print(f"  [ERR] Corrupt server log: {e}")
         return None
@@ -73,6 +88,9 @@ def analyze_scenario(folder_path):
             df_client = pd.read_csv(c_file)
             if df_client.empty: 
                 continue
+            
+            # DEBUG: Print client columns
+            print(f"  Client columns: {list(df_client.columns)}")
             
             # Clean client data
             df_client = df_client.dropna()
@@ -113,45 +131,91 @@ def analyze_scenario(folder_path):
                 if len(df_p1) > 0 and not df_server.empty:
                     # Convert timestamps to seconds
                     df_p1['ts_sec'] = df_p1['recv_time_ms'] / 1000.0
-                    df_server_clean = df_server.copy()
-                    df_server_clean['timestamp_sec'] = df_server_clean['timestamp']
                     
-                    # Merge with more generous tolerance for VirtualBox timing issues
-                    df_merged = pd.merge_asof(
-                        df_p1.sort_values('ts_sec'), 
-                        df_server_clean.sort_values('timestamp_sec'), 
-                        left_on='ts_sec', 
-                        right_on='timestamp_sec', 
-                        direction='nearest',
-                        tolerance=0.5  # Increased from 0.1 to 0.5 seconds
-                    )
+                    # Find server position columns - FIXED VERSION
+                    # Look for columns containing position data
+                    server_pos_cols = {}
                     
-                    if not df_merged.empty and 'player1_pos_x' in df_merged.columns:
-                        # Calculate Euclidean distance error
-                        dx = df_merged['render_x'] - df_merged['player1_pos_x']
-                        dy = df_merged['render_y'] - df_merged['player1_pos_y']
-                        position_errors = np.sqrt(dx**2 + dy**2)
+                    # Try to find player position columns in server log
+                    # Based on your server code, columns might be named like:
+                    # 'player1_pos_x', 'player1_pos_y', or just numbers
+                    for col in df_server.columns:
+                        col_lower = col.lower()
+                        if 'player1' in col_lower and ('x' in col_lower or 'pos' in col_lower):
+                            if 'x' in col_lower or '0' in col or col.endswith('_0'):
+                                server_pos_cols['x'] = col
+                            elif 'y' in col_lower or '1' in col or col.endswith('_1'):
+                                server_pos_cols['y'] = col
+                    
+                    # If we couldn't find named columns, check for numeric indices
+                    if len(server_pos_cols) < 2:
+                        for i, col in enumerate(df_server.columns):
+                            if i >= 3:  # Skip timestamp, cpu, bytes columns
+                                if i == 3:
+                                    server_pos_cols['x'] = col
+                                elif i == 4:
+                                    server_pos_cols['y'] = col
+                    
+                    print(f"  Server position columns: {server_pos_cols}")
+                    
+                    if 'x' in server_pos_cols and 'y' in server_pos_cols:
+                        # Rename server columns for easier access
+                        df_server_clean = df_server.copy()
+                        df_server_clean = df_server_clean.rename(columns={
+                            server_pos_cols['x']: 'player1_pos_x',
+                            server_pos_cols['y']: 'player1_pos_y'
+                        })
                         
-                        # Filter out extreme outliers
-                        valid_errors = position_errors[
-                            (position_errors >= 0) & 
-                            (position_errors <= 10)  # Max reasonable error
-                        ]
+                        df_server_clean['timestamp_sec'] = df_server_clean['timestamp']
                         
-                        if len(valid_errors) > 0:
-                            scenario_metrics['position_error']['all'].extend(valid_errors.tolist())
-                            scenario_metrics['position_error']['means'].append(valid_errors.mean())
+                        # Merge with tolerance
+                        df_merged = pd.merge_asof(
+                            df_p1.sort_values('ts_sec'), 
+                            df_server_clean.sort_values('timestamp_sec'), 
+                            left_on='ts_sec', 
+                            right_on='timestamp_sec', 
+                            direction='nearest',
+                            tolerance=0.5
+                        )
+                        
+                        if not df_merged.empty and 'player1_pos_x' in df_merged.columns:
+                            # Calculate Euclidean distance error
+                            dx = df_merged['render_x'] - df_merged['player1_pos_x']
+                            dy = df_merged['render_y'] - df_merged['player1_pos_y']
+                            position_errors = np.sqrt(dx**2 + dy**2)
+                            
+                            # Filter out extreme outliers
+                            valid_errors = position_errors[
+                                (position_errors >= 0) & 
+                                (position_errors <= 10)  # Max reasonable error
+                            ]
+                            
+                            if len(valid_errors) > 0:
+                                print(f"  Calculated {len(valid_errors)} position error samples")
+                                print(f"  Sample errors: {valid_errors[:5].tolist()}")
+                                scenario_metrics['position_error']['all'].extend(valid_errors.tolist())
+                                scenario_metrics['position_error']['means'].append(valid_errors.mean())
+                    else:
+                        print(f"  Could not find player position columns in server log")
             
             # 4. METRIC: CPU Usage (from server log)
             if 'cpu_percent' in df_server.columns:
                 cpu_avg = df_server['cpu_percent'].mean()
                 scenario_metrics['cpu_usage'].append(cpu_avg)
+            else:
+                # Try to find CPU column by name pattern
+                cpu_cols = [col for col in df_server.columns if 'cpu' in col.lower()]
+                if cpu_cols:
+                    cpu_avg = df_server[cpu_cols[0]].mean()
+                    scenario_metrics['cpu_usage'].append(cpu_avg)
             
             # 5. METRIC: Bandwidth (approximate)
-            if 'bytes_sent' in df_server.columns and len(df_server) > 1:
+            bytes_cols = [col for col in df_server.columns if 'byte' in col.lower()]
+            if bytes_cols and len(df_server) > 1:
+                bytes_col = bytes_cols[0]
                 time_span = df_server['timestamp'].iloc[-1] - df_server['timestamp'].iloc[0]
                 if time_span > 0:
-                    total_bytes = df_server['bytes_sent'].iloc[-1] - df_server['bytes_sent'].iloc[0]
+                    total_bytes = df_server[bytes_col].iloc[-1] - df_server[bytes_col].iloc[0]
                     bandwidth_kbps = (total_bytes * 8 / 1024) / time_span
                     scenario_metrics['bandwidth'].append(bandwidth_kbps)
             
@@ -166,6 +230,8 @@ def analyze_scenario(folder_path):
                     
         except Exception as e:
             print(f"  [WARN] Error processing {os.path.basename(c_file)}: {e}")
+            import traceback
+            traceback.print_exc()
             continue
     
     # 7. METRIC: Critical Event Delivery (PDF Requirement: ≥99% within 200ms)
@@ -201,17 +267,22 @@ def analyze_scenario(folder_path):
             print(f"      ✅ PASS: Meets ≤50ms requirement")
         else:
             print(f"      ❌ FAIL: Exceeds ≤50ms requirement")
+    else:
+        print(f"    Latency: No data")
     
     # Position error statistics
     if scenario_metrics['position_error']['all']:
         errors = np.array(scenario_metrics['position_error']['all'])
         print(f"\n    Position Error:")
         print(f"      Mean: {errors.mean():.4f} grid units")
+        print(f"      Std Dev: {errors.std():.4f} grid units")
         print(f"      95th percentile: {np.percentile(errors, 95):.4f} grid units")
+        print(f"      Max: {errors.max():.4f} grid units")
+        print(f"      Min: {errors.min():.4f} grid units")
+        print(f"      Samples: {len(errors)}")
         
         # PDF Requirements:
         # Loss 2%: Mean ≤ 0.5 units, 95th ≤ 1.5 units
-        # Loss 5%: System remains stable
         mean_ok = errors.mean() <= 0.5
         percentile_ok = np.percentile(errors, 95) <= 1.5
         
@@ -219,6 +290,8 @@ def analyze_scenario(folder_path):
             print(f"      ✅ PASS: Meets position error requirements")
         else:
             print(f"      ⚠️  WARNING: Position error exceeds requirements")
+    else:
+        print(f"\n    Position Error: No data (check column names)")
     
     # Update rate statistics
     if scenario_metrics['update_rate']:
@@ -231,6 +304,8 @@ def analyze_scenario(folder_path):
             print(f"      ✅ PASS: Within 20±2 Hz target")
         else:
             print(f"      ⚠️  WARNING: Update rate outside target range")
+    else:
+        print(f"\n    Update Rate: No data")
     
     # Critical event delivery
     if critical_event_data:
@@ -239,12 +314,15 @@ def analyze_scenario(folder_path):
         print(f"\n    Critical Event Delivery:")
         print(f"      Events within 200ms: {within_200ms:.1f}%")
         print(f"      Average latency: {latencies.mean():.1f} ms")
+        print(f"      Total events: {len(latencies)}")
         
         # PDF Requirement: ≥99% within 200ms
         if within_200ms >= 99:
             print(f"      ✅ PASS: Meets ≥99% within 200ms requirement")
         else:
             print(f"      ❌ FAIL: Below ≥99% requirement")
+    else:
+        print(f"\n    Critical Event Delivery: No data")
     
     # CPU usage
     if scenario_metrics['cpu_usage']:
@@ -257,18 +335,24 @@ def analyze_scenario(folder_path):
             print(f"      ✅ PASS: Below 60% threshold")
         else:
             print(f"      ⚠️  WARNING: CPU usage above 60%")
+    else:
+        print(f"\n    Server CPU Usage: No data")
     
     # Bandwidth
     if scenario_metrics['bandwidth']:
         bw_avg = np.mean(scenario_metrics['bandwidth'])
         print(f"\n    Bandwidth Usage:")
         print(f"      Average: {bw_avg:.1f} Kbps per client")
+    else:
+        print(f"\n    Bandwidth Usage: No data")
     
     # Jitter
     if scenario_metrics['jitter']:
         jitter_avg = np.mean(scenario_metrics['jitter'])
         print(f"\n    Jitter:")
         print(f"      Average: {jitter_avg:.1f} ms")
+    else:
+        print(f"\n    Jitter: No data")
     
     # Packet loss
     print(f"\n    Packet Loss Estimation:")
@@ -385,6 +469,8 @@ def generate_plots(all_metrics):
             plt.tight_layout()
             plt.savefig('position_error_summary.png')
             print(f"✅ Generated: position_error_summary.png")
+        else:
+            print(f"⚠️  Could not generate position error plot - no data")
         
         plt.close('all')
         
