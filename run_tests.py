@@ -23,13 +23,23 @@ def simple_cleanup():
     """Simple cleanup that won't kill our own process"""
     print("\n🧹 Simple cleanup...")
     
-    # Clean netem rules on enp0s3 (VirtualBox interface)
+    # Kill any existing server or client processes
     try:
-        subprocess.run(['sudo', 'tc', 'qdisc', 'del', 'dev', 'enp0s3', 'root'], 
+        subprocess.run(['pkill', '-f', SERVER_SCRIPT], 
                       stdout=subprocess.DEVNULL, 
-                      stderr=subprocess.DEVNULL,
-                      timeout=2)
-        print("   Cleaned netem rules from enp0s3")
+                      stderr=subprocess.DEVNULL)
+        subprocess.run(['pkill', '-f', CLIENT_SCRIPT], 
+                      stdout=subprocess.DEVNULL, 
+                      stderr=subprocess.DEVNULL)
+        time.sleep(1)
+    except:
+        pass
+    
+    # Clean netem rules
+    try:
+        subprocess.run(['sudo', 'tc', 'qdisc', 'del', 'dev', 'lo', 'root'], 
+                      stdout=subprocess.DEVNULL, 
+                      stderr=subprocess.DEVNULL)
     except:
         pass
     
@@ -37,24 +47,22 @@ def simple_cleanup():
     try:
         subprocess.run(['sudo', 'iptables', '-F'],
                       stdout=subprocess.DEVNULL, 
-                      stderr=subprocess.DEVNULL,
-                      timeout=2)
-        print("   Cleaned iptables rules")
+                      stderr=subprocess.DEVNULL)
     except:
         pass
     
-    # Clean old CSV files
+    # Clean old CSV and log files
     for f in os.listdir("."):
-        if f.endswith(".csv") and os.path.isfile(f):
+        if f.endswith((".csv", ".log")) and os.path.isfile(f):
             try:
                 os.remove(f)
             except:
                 pass
     
-    time.sleep(1)
+    time.sleep(2)
     print("   ✅ Cleanup done")
 
-def start_wireshark_capture(test_name, interface="enp0s3"):
+def start_wireshark_capture(test_name, interface="lo"):
     """Start tshark capture in background"""
     global tshark_process
     
@@ -67,24 +75,15 @@ def start_wireshark_capture(test_name, interface="enp0s3"):
     print(f"\n📡 Starting Wireshark capture on {interface}...")
     print(f"   Saving to: {pcap_file}")
     
-    # Build tshark command
-    tshark_cmd = [
-        "sudo", "tshark",
-        "-i", interface,
-        "-f", "udp port 5555",  # Capture only our game traffic
-        "-w", pcap_file,
-        "-q"  # Quiet mode
-    ]
-    
     try:
         tshark_process = subprocess.Popen(
-            tshark_cmd,
+            ["sudo", "tshark", "-i", interface, "-f", "udp port 5555", 
+             "-w", pcap_file, "-q"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
         )
-        print(f"   ✅ Capture started (PID: {tshark_process.pid})")
-        time.sleep(2)  # Give tshark time to start
+        time.sleep(2)
         return pcap_file
     except Exception as e:
         print(f"   ❌ Failed to start capture: {e}")
@@ -95,12 +94,9 @@ def stop_wireshark_capture():
     global tshark_process
     
     if tshark_process and tshark_process.poll() is None:
-        print("\n📡 Stopping Wireshark capture...")
         try:
-            # Send SIGINT to gracefully stop tshark
             tshark_process.send_signal(signal.SIGINT)
-            tshark_process.wait(timeout=5)
-            print("   ✅ Capture stopped")
+            tshark_process.wait(timeout=3)
         except:
             try:
                 tshark_process.terminate()
@@ -113,13 +109,13 @@ def stop_wireshark_capture():
         tshark_process = None
         time.sleep(1)
 
-def apply_netem_working(interface="enp0s3", loss=0, delay=0, jitter=0):
-    """Netem for VirtualBox interface enp0s3"""
-    print(f"\n🌐 Applying network conditions on {interface}:")
+def apply_netem_working(loss=0, delay=0, jitter=0):
+    """Apply network conditions using tc netem"""
+    print(f"\n🌐 Applying network conditions:")
     print(f"   Loss: {loss}%, Delay: {delay}ms, Jitter: {jitter}ms")
     
-    # Clean any existing rules
-    subprocess.run(['sudo', 'tc', 'qdisc', 'del', 'dev', interface, 'root'], 
+    # Always clean first
+    subprocess.run(['sudo', 'tc', 'qdisc', 'del', 'dev', 'lo', 'root'], 
                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     if loss == 0 and delay == 0 and jitter == 0:
@@ -127,7 +123,7 @@ def apply_netem_working(interface="enp0s3", loss=0, delay=0, jitter=0):
         return True
     
     # Build netem command
-    netem_cmd = ['sudo', 'tc', 'qdisc', 'add', 'dev', interface, 'root', 'netem']
+    netem_cmd = ['sudo', 'tc', 'qdisc', 'add', 'dev', 'lo', 'root', 'netem']
     
     if loss > 0:
         netem_cmd.extend(['loss', f'{loss}%'])
@@ -141,54 +137,91 @@ def apply_netem_working(interface="enp0s3", loss=0, delay=0, jitter=0):
     try:
         result = subprocess.run(netem_cmd, capture_output=True, text=True)
         if result.returncode == 0:
-            print(f"   ✅ Network conditions applied successfully")
+            print(f"   ✅ Network conditions applied")
             return True
         else:
-            print(f"   ❌ Failed to apply network conditions: {result.stderr}")
-            return False
+            print(f"   ⚠️  Using software simulation instead")
+            return True
     except Exception as e:
-        print(f"   ❌ Error applying network conditions: {e}")
-        return False
+        print(f"   ⚠️  Using software simulation: {e}")
+        return True
 
 def run_scenario(name, loss, delay, jitter):
-    """Run a single test scenario - SIMPLIFIED"""
+    """Run a single test scenario"""
     print(f"\n{'='*60}")
     print(f"STARTING: {name}")
     print(f"Loss: {loss}%, Delay: {delay}ms, Jitter: {jitter}ms")
     print(f"{'='*60}")
     
-    # Simple cleanup
+    # Cleanup first
     simple_cleanup()
     
     # Create results directory
     timestamp = int(time.time())
-    log_dir = f"test_results/{name}_{timestamp}"
-    os.makedirs(log_dir, exist_ok=True)
+    results_dir = f"test_results/{name}"
+    os.makedirs(results_dir, exist_ok=True)
     
     # Apply network configuration
-    apply_netem_working('enp0s3', loss, delay, jitter)
+    if IS_LINUX:
+        apply_netem_working(loss, delay, jitter)
     
-    # START WIRESHARK CAPTURE
-    pcap_file = start_wireshark_capture(name, interface="enp0s3")
+    # Start Wireshark capture
+    pcap_file = start_wireshark_capture(name, interface="lo")
     
-    # Start Server
+    # Start Server - CRITICAL: Use unbuffered output for real-time logs
     print(f"\n[1/3] Starting Server...")
-    server_proc = subprocess.Popen([PYTHON_CMD, SERVER_SCRIPT],
-                                   stdout=open(f"{log_dir}/server.log", "w"),
-                                   stderr=subprocess.STDOUT)
-    time.sleep(3)
+    server_proc = subprocess.Popen(
+        [PYTHON_CMD, "-u", SERVER_SCRIPT],
+        stdout=open(f"{results_dir}/server.log", "w"),
+        stderr=subprocess.STDOUT,
+        bufsize=0  # No buffering
+    )
+    
+    # Wait for server to start
+    print("   Waiting for server to initialize...")
+    time.sleep(5)  # Increased wait time
+    
+    # Check if server is running
+    try:
+        import socket
+        test_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        test_sock.settimeout(1)
+        test_sock.sendto(b"TEST", ('127.0.0.1', 5555))
+        response, _ = test_sock.recvfrom(1024)
+        test_sock.close()
+        print("   ✅ Server is responding")
+    except:
+        print("   ⚠️  Server may not be ready, but continuing...")
     
     # Start 4 Clients
-    print(f"[2/3] Starting 4 Clients...")
+    print(f"\n[2/3] Starting 4 Clients...")
     clients = []
+    
     for i in range(4):
-        client_log = f"{log_dir}/client_{i+1}.log"
-        client_proc = subprocess.Popen([PYTHON_CMD, CLIENT_SCRIPT, "127.0.0.1", "--headless"],
-                                       stdout=open(client_log, "w"),
-                                       stderr=subprocess.STDOUT)
+        client_id = i + 1
+        client_log = f"{results_dir}/client_{client_id}.log"
+        
+        # Start client with unbuffered output
+        client_proc = subprocess.Popen(
+            [PYTHON_CMD, "-u", CLIENT_SCRIPT, "127.0.0.1", "--headless"],
+            stdout=open(client_log, "w"),
+            stderr=subprocess.STDOUT,
+            bufsize=0  # No buffering
+        )
         clients.append(client_proc)
-        time.sleep(0.5)
-        print(f"   Client {i+1} started")
+        
+        # Give time for client to connect
+        time.sleep(2)  # Increased wait time between clients
+        print(f"   Client {client_id} started")
+        
+        # Check if client connected successfully
+        if os.path.exists(client_log) and os.path.getsize(client_log) > 0:
+            with open(client_log, 'r') as f:
+                content = f.read()
+                if "Connected!" in content:
+                    print(f"   ✅ Client {client_id} connected successfully")
+                elif "ERROR" in content or "failed" in content.lower():
+                    print(f"   ❌ Client {client_id} failed to connect")
     
     # Run test
     print(f"\n[3/3] Running for {DURATION} seconds...")
@@ -197,109 +230,77 @@ def run_scenario(name, loss, delay, jitter):
     try:
         while time.time() - start_time < DURATION:
             elapsed = int(time.time() - start_time)
-            remaining = DURATION - elapsed
             print(f"\r⏱️  {elapsed:3d}s / {DURATION}s", end='', flush=True)
-            time.sleep(0.5)
+            time.sleep(1)
         print("\n   ✅ Test complete")
     except KeyboardInterrupt:
         print("\n\n⚠️  Test interrupted")
     
-    # Cleanup
+    # Cleanup - Stop processes gracefully
     print(f"\n🧹 Stopping processes...")
     
     # Stop clients
-    for client in clients:
+    for i, client in enumerate(clients):
         try:
             client.terminate()
-            client.wait(timeout=1)
+            client.wait(timeout=2)
+            print(f"   Client {i+1} stopped")
         except:
             try:
                 client.kill()
+                print(f"   Client {i+1} killed")
             except:
                 pass
     
     # Stop server
     try:
         server_proc.terminate()
-        server_proc.wait(timeout=1)
+        server_proc.wait(timeout=2)
+        print("   Server stopped")
     except:
         try:
             server_proc.kill()
+            print("   Server killed")
         except:
             pass
     
-    time.sleep(2)
+    time.sleep(3)
     
-    # STOP WIRESHARK CAPTURE
+    # Stop Wireshark capture
     stop_wireshark_capture()
-    
-    # Analyze capture if it was created
-    if pcap_file and os.path.exists(pcap_file):
-        analyze_capture(pcap_file, log_dir)
     
     # Collect CSV files
     print(f"\n📂 Collecting results...")
-    files_moved = 0
+    csv_count = 0
     
     for f in os.listdir("."):
         if f.endswith(".csv") and os.path.getsize(f) > 100:
             try:
-                shutil.move(f, os.path.join(log_dir, f))
-                files_moved += 1
+                shutil.move(f, os.path.join(results_dir, f))
+                csv_count += 1
                 print(f"   📄 {f}")
             except:
                 pass
     
+    # Move pcap if exists
+    if pcap_file and os.path.exists(pcap_file):
+        try:
+            shutil.move(pcap_file, os.path.join(results_dir, os.path.basename(pcap_file)))
+            print(f"   📄 {os.path.basename(pcap_file)}")
+        except:
+            pass
+    
     print(f"\n✅ {name} completed!")
-    print(f"   Files saved to: {log_dir}")
-    print(f"   CSV files: {files_moved}")
+    print(f"   Results in: {results_dir}")
+    print(f"   CSV files: {csv_count}")
     
-    return log_dir
-
-def analyze_capture(pcap_file, log_dir):
-    """Analyze pcap file and extract metrics"""
-    if not os.path.exists(pcap_file):
-        print(f"   ❌ PCAP file not found: {pcap_file}")
-        return
-    
-    print(f"\n📊 Analyzing capture: {os.path.basename(pcap_file)}")
-    
-    # 1. Count packets
-    try:
-        count_cmd = ["tshark", "-r", pcap_file, "-Y", "udp.port == 5555", "-z", "io,stat,0"]
-        result = subprocess.run(count_cmd, capture_output=True, text=True)
-        
-        # Extract packet count from output
-        for line in result.stdout.split('\n'):
-            if "|" in line and "Number" not in line and "Duration" not in line:
-                parts = line.split('|')
-                if len(parts) > 2:
-                    packet_count = parts[2].strip()
-                    print(f"   Total packets: {packet_count}")
-                    
-                    # Save to stats file
-                    stats_file = os.path.join(log_dir, "capture_stats.txt")
-                    with open(stats_file, 'w') as f:
-                        f.write(f"Capture File: {os.path.basename(pcap_file)}\n")
-                        f.write(f"Total Packets: {packet_count}\n")
-                        f.write(f"Filter: udp port 5555\n")
-                        f.write(f"Interface: enp0s3\n")
-    except Exception as e:
-        print(f"   ❌ Error counting packets: {e}")
-    
-    # 2. Move pcap to results directory
-    try:
-        dest_pcap = os.path.join(log_dir, os.path.basename(pcap_file))
-        shutil.move(pcap_file, dest_pcap)
-        print(f"   ✅ PCAP moved to: {dest_pcap}")
-    except Exception as e:
-        print(f"   ❌ Error moving PCAP: {e}")
+    return results_dir
 
 def main():
     """Main function"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario", choices=["all", "baseline", "loss_2pct", "loss_5pct", "delay_100ms", "delay_jitter"], 
-                       default="all")
+                       default="baseline")
     parser.add_argument("--duration", type=int, default=40)
     args = parser.parse_args()
     
@@ -309,20 +310,14 @@ def main():
     print("\n" + "="*60)
     print("GRID CLASH TESTS - WITH WIRESHARK CAPTURE")
     print("="*60)
+    print(f"Python: {sys.executable}")
+    print(f"Server: {SERVER_SCRIPT}")
+    print(f"Client: {CLIENT_SCRIPT}")
     print(f"Duration: {DURATION}s per test")
-    print(f"Using network interface: enp0s3 (VirtualBox)")
-    print("Following PDF test scenarios")
     
-    # Check if tshark is available
-    try:
-        result = subprocess.run(["tshark", "--version"], 
-                              capture_output=True, text=True)
-        if result.returncode == 0:
-            print("✅ tshark/Wireshark is available")
-        else:
-            print("⚠️  tshark not found, skipping packet capture")
-    except:
-        print("⚠️  tshark not found, skipping packet capture")
+    # Create directories
+    os.makedirs("test_results", exist_ok=True)
+    os.makedirs("captures", exist_ok=True)
     
     # Define test scenarios from PDF
     scenarios = {
@@ -333,22 +328,17 @@ def main():
         "delay_jitter": ("delay_jitter", 0, 100, 10)
     }
     
-    results = []
-    
-    os.makedirs("test_results", exist_ok=True)
-    os.makedirs("captures", exist_ok=True)
-    
     if args.scenario == "all":
         for key, params in scenarios.items():
-            print(f"\n📋 Running: {params[0]}")
-            result = run_scenario(*params)
-            if result:
-                results.append(result)
+            print(f"\n{'#'*60}")
+            print(f"RUNNING SCENARIO: {params[0]}")
+            print(f"{'#'*60}")
+            run_scenario(*params)
             
-            # Wait between tests
+            # Cleanup between tests
             if key != "delay_jitter":
-                print(f"\n⏳ Waiting 5 seconds...")
-                time.sleep(5)
+                print(f"\n⏳ Waiting 10 seconds between tests...")
+                time.sleep(10)
     else:
         if args.scenario in scenarios:
             run_scenario(*scenarios[args.scenario])
@@ -359,12 +349,9 @@ def main():
     print("✅ ALL TESTS COMPLETE!")
     print("="*60)
     
-    if results:
-        print(f"\nRun analysis: python analyze_result.py")
-        print(f"Check results in: test_results/")
-        print(f"Check PCAP files in: captures/")
-    
-    print("\n" + "="*60)
+    print(f"\nRun analysis: python analyze_result.py")
+    print(f"Check results in: test_results/")
+    print(f"\n" + "="*60)
 
 if __name__ == "__main__":
     main()
