@@ -539,9 +539,9 @@ class ResultsAnalyzer:
         df.to_csv(csv_path, index=False)
         print(f"  ✅ Saved CSV: {csv_path}")
         
-        # Save formatted text report
+        # Save formatted text report with ASCII characters only
         txt_path = 'analysis_summary.txt'
-        with open(txt_path, 'w') as f:
+        with open(txt_path, 'w', encoding='utf-8') as f:  # Explicit UTF-8 encoding
             f.write("="*80 + "\n")
             f.write("GRID CLASH - EXPERIMENTAL RESULTS SUMMARY\n")
             f.write("="*80 + "\n")
@@ -563,52 +563,52 @@ class ResultsAnalyzer:
                     
                     if 'latency_mean' in metrics:
                         f.write(f"Latency: {metrics['latency_mean']:.1f}ms mean, "
-                               f"{metrics['latency_median']:.1f}ms median, "
-                               f"{metrics['latency_95th']:.1f}ms 95th %ile\n")
+                            f"{metrics['latency_median']:.1f}ms median, "
+                            f"{metrics['latency_95th']:.1f}ms 95th %ile\n")
                     
                     if 'jitter_mean' in metrics:
                         f.write(f"Jitter: {metrics['jitter_mean']:.1f}ms mean, "
-                               f"{metrics['jitter_95th']:.1f}ms 95th %ile\n")
+                            f"{metrics['jitter_95th']:.1f}ms 95th %ile\n")
                     
                     if 'packet_loss_rate' in metrics:
                         f.write(f"Packet loss: {metrics['packet_loss_rate']*100:.2f}% "
-                               f"({metrics.get('sequence_gaps', 0)} gaps)\n")
+                            f"({metrics.get('sequence_gaps', 0)} gaps)\n")
                     
                     if 'server_cpu_mean' in metrics:
                         f.write(f"Server CPU: {metrics['server_cpu_mean']:.1f}% mean, "
-                               f"{metrics['server_cpu_max']:.1f}% max\n")
+                            f"{metrics['server_cpu_max']:.1f}% max\n")
                     
                     if errors:
                         f.write(f"Position error: {np.mean(errors):.3f} mean, "
-                               f"{np.median(errors):.3f} median, "
-                               f"{np.percentile(errors, 95):.3f} 95th %ile\n")
+                            f"{np.median(errors):.3f} median, "
+                            f"{np.percentile(errors, 95):.3f} 95th %ile\n")
                     
-                    # PDF Acceptance Criteria
+                    # PDF Acceptance Criteria (ASCII only for Windows)
                     f.write("\nPDF ACCEPTANCE CRITERIA:\n")
                     
                     if scenario == "baseline":
                         latency_ok = metrics.get('latency_mean', 999) <= 50
                         cpu_ok = metrics.get('server_cpu_mean', 999) <= 60
                         
-                        f.write(f"  Latency ≤ 50ms: {'✅ PASS' if latency_ok else '❌ FAIL'} "
-                               f"({metrics.get('latency_mean', 0):.1f}ms)\n")
-                        f.write(f"  CPU ≤ 60%: {'✅ PASS' if cpu_ok else '❌ FAIL'} "
-                               f"({metrics.get('server_cpu_mean', 0):.1f}%)\n")
+                        f.write(f"  Latency <= 50ms: {'[PASS]' if latency_ok else '[FAIL]'} "
+                            f"({metrics.get('latency_mean', 0):.1f}ms)\n")
+                        f.write(f"  CPU <= 60%: {'[PASS]' if cpu_ok else '[FAIL]'} "
+                            f"({metrics.get('server_cpu_mean', 0):.1f}%)\n")
                     
                     elif scenario == "loss_2pct":
                         if errors:
                             error_ok = np.mean(errors) <= 0.5
-                            f.write(f"  Position error ≤ 0.5 units: "
-                                   f"{'✅ PASS' if error_ok else '❌ FAIL'} "
-                                   f"({np.mean(errors):.3f} units)\n")
+                            f.write(f"  Position error <= 0.5 units: "
+                                f"{'[PASS]' if error_ok else '[FAIL]'} "
+                                f"({np.mean(errors):.3f} units)\n")
                     
                     elif scenario == "loss_5pct":
-                        # Critical events delivered ≥99% within 200ms
+                        # Critical events delivered >=99% within 200ms
                         if 'latency_95th' in metrics:
                             critical_ok = metrics['latency_95th'] <= 200
-                            f.write(f"  95th %ile latency ≤ 200ms: "
-                                   f"{'✅ PASS' if critical_ok else '❌ FAIL'} "
-                                   f"({metrics['latency_95th']:.1f}ms)\n")
+                            f.write(f"  95th %ile latency <= 200ms: "
+                                f"{'[PASS]' if critical_ok else '[FAIL]'} "
+                                f"({metrics['latency_95th']:.1f}ms)\n")
                     
                     f.write("\n")
         
