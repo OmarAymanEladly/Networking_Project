@@ -37,11 +37,11 @@ class GridClashUDPServer:
         self.sequence_num = 0
         self.update_rate = 20  # (Send updates every 50ms)
         
-        # Reliability Structures (Phase 2 requirement)
+        
         self.retry_queue = {} 
         self.client_last_seen = defaultdict(float)
         
-        # Metrics required for Phase 2 Analysis
+            # Metrics
         self.metrics = {
             'packets_sent': 0,
             'packets_received': 0,
@@ -61,7 +61,7 @@ class GridClashUDPServer:
             print(f">>> Grid Clash UDP Server started on {self.host}:{self.port}")
             print(f">>> Update Rate: {self.update_rate}Hz | Loss Simulation: {self.loss_rate*100}%")
             
-            # Initialize CSV Logger with Phase 2 required columns
+            # Initialize CSV Logger 
             # We track Player 1's position to compare against what clients see
             self.csv_logger = GameLogger("server_log.csv", 
                 ["timestamp", "cpu_percent", "bytes_sent", "player1_pos_x", "player1_pos_y"])
@@ -250,7 +250,7 @@ class GridClashUDPServer:
                         self.game_state.reset_game()
                         print("UPDATE Game reset for new round!")
             
-            # --- METRICS LOGGING (Phase 2 Requirement) ---
+            # --- METRICS LOGGING  ---
             try:
                 # Log Player 1's position for "Perceived Position Error" calculation
                 if 'player_1' in self.game_state.players:
@@ -281,20 +281,15 @@ class GridClashUDPServer:
         self.snapshot_id += 1
         self.sequence_num += 1
         
-        # Get Delta State (only changes since last broadcast)
-        game_state_data = self.game_state.get_game_data(reset_dirty=True)
+        # Get Delta updates (Phase 2 Requirement)
+        state_data = self.game_state.get_game_data(reset_dirty=True)
         
-        # Encode
+        # Use the compressed binary protocol
         snapshot_data = GridClashBinaryProtocol.encode_game_state(
-            self.snapshot_id, self.sequence_num, game_state_data, full_grid=False)
+            self.snapshot_id, self.sequence_num, state_data)
         
-        # Send to all
         for client_addr in list(self.clients.keys()):
-            try:
-                self.server_socket.sendto(snapshot_data, client_addr)
-                self.metrics['packets_sent'] += 1
-                self.metrics['bytes_sent'] += len(snapshot_data)
-            except: pass
+            self.send_to_client(client_addr, snapshot_data)
 
     def broadcast_game_over(self):
         scoreboard = self.game_state.get_scoreboard()

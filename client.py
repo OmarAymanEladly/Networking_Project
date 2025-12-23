@@ -121,96 +121,102 @@ class GridClashUDPClient:
         payload = message['payload']
         msg_type = header['msg_type']
         
-        # 1. Metrics Logging (For every packet)
+        # --- 1. PING & METRICS CALCULATION ---
+        # The header timestamp is in absolute milliseconds (8-byte Q format)
         server_ts_ms = header['timestamp']
-        recv_time_ms = int(recv_time * 1000)
+        current_ts_ms = int(time.time() * 1000)
         
-        latency_ms = 0
-        if server_ts_ms > 0:
-            latency_ms = recv_time_ms - server_ts_ms
-            self.metrics['latency_samples'].append(latency_ms)
+        # Calculate latency (Ping)
+        latency_ms = current_ts_ms - server_ts_ms
+        latency_ms = max(0, latency_ms)  # Clamp to 0 to avoid negative numbers from clock drift
+        
+        self.metrics['latency_samples'].append(latency_ms)
+        if len(self.metrics['latency_samples']) > 20:
+            self.metrics['latency_samples'].pop(0)
 
-        # Log to CSV file
-        p1_render = self.render_positions.get('player_1', [0,0])
-        
-        # Avoid crashing if we don't have an ID yet
-        log_id = self.player_id if self.player_id else "unknown"
-        
+        # Log metrics to CSV for the Phase 3 report
+        p1_render = self.render_positions.get('player_1', [0, 0])
         self.csv_logger.log([
-            log_id,
+            self.player_id,
             header['snapshot_id'],
             header['seq_num'],
             server_ts_ms,
-            recv_time_ms,
+            current_ts_ms,
             latency_ms,
             p1_render[0], p1_render[1]
         ])
 
-        # 2. Reliability (Handle ACKs)
+        # --- 2. RELIABILITY (ARQ) HANDLING ---
+        # Handle ACKs for our critical requests (like ACQUIRE)
         ack_seq = None
         if msg_type == GridClashBinaryProtocol.MSG_ACK:
             ack_seq = payload.get('acked_seq')
         elif msg_type == GridClashBinaryProtocol.MSG_ACQUIRE_RESPONSE:
-            # Implicit ACK
-            try:
-                self.client_socket.sendto(GridClashBinaryProtocol.encode_ack(header['seq_num']), self.server_address)
-            except: pass
+            # An Acquire Response acts as an implicit ACK for that specific sequence
+            ack_seq = header['seq_num']
         
         if ack_seq and ack_seq in self.pending_requests:
             del self.pending_requests[ack_seq]
 
-        # 3. Game Logic
+        # --- 3. MESSAGE LOGIC ---
+        
+        # A. WELCOME: Initial join data
         if msg_type == GridClashBinaryProtocol.MSG_WELCOME:
             self.player_id = payload.get('player_id')
-            if payload: 
-                self.game_data.update(payload)
-                if 'grid' in payload: 
-                    self.game_data['grid'] = payload['grid'].copy()
-            if 'player_positions' in payload:
-                self.target_positions = payload['player_positions'].copy()
-                for pid, pos in self.target_positions.items():
-                    self.render_positions[pid] = list(pos)
-            if self.player_id in self.target_positions:
-                self.my_predicted_pos = list(self.target_positions[self.player_id])
+            self.game_data.update(payload)
             
+            # Initialize positions so we don't snap at start
+            if 'player_positions' in payload:
+                for pid, pos in payload['player_positions'].items():
+                    self.target_positions[pid] = list(pos)
+                    self.render_positions[pid] = list(pos)
+                if self.player_id in self.target_positions:
+                    self.my_predicted_pos = list(self.target_positions[self.player_id])
+            print(f"[OK] Connected as {self.player_id}")
+
+        # B. GAME STATE: Periodic 20Hz update (Scoreboard + Movement)
         elif msg_type == GridClashBinaryProtocol.MSG_GAME_STATE:
+            # Phase 2 Requirement: Discard outdated snapshots
             snapshot_id = header['snapshot_id']
-            if snapshot_id <= self.last_snapshot_id: return 
+            if snapshot_id <= self.last_snapshot_id:
+                return 
             self.last_snapshot_id = snapshot_id
 
-            if payload:
-                self.game_data['players'] = payload.get('players', {})
-                self.game_data['game_over'] = payload.get('game_over', False)
-                self.game_data['winner_id'] = payload.get('winner_id', None)
-                
-                # Delta Decoding - Update grid with new changes
-                for cell_id, cell_data in payload.get('grid', {}).items():
+            # FIX: Update the players dictionary to reflect scores on the right-hand panel
+            if 'players' in payload:
+                self.game_data['players'] = payload['players']
+            
+            # Apply Delta Grid Updates (only cells that changed)
+            if 'grid_updates' in payload:
+                for cell_id, cell_data in payload['grid_updates'].items():
                     self.game_data['grid'][cell_id] = cell_data
-                
-                if 'player_positions' in payload:
-                    new_positions = payload['player_positions']
-                    for pid, pos in new_positions.items():
-                        self.target_positions[pid] = pos
-                        if pid not in self.render_positions:
-                            self.render_positions[pid] = list(pos)
-                
+
+            # Update everyone's target positions for interpolation
+            if 'player_positions' in payload:
+                for pid, pos in payload['player_positions'].items():
+                    self.target_positions[pid] = list(pos)
+                    if pid not in self.render_positions:
+                        self.render_positions[pid] = list(pos)
+
+            # Update game status
+            self.game_data['game_over'] = payload.get('game_over', False)
+            self.game_data['winner_id'] = payload.get('winner_id', None)
+
+        # C. ACQUIRE RESPONSE: Did our click work?
         elif msg_type == GridClashBinaryProtocol.MSG_ACQUIRE_RESPONSE:
+            cell_id = payload.get('cell_id')
             if payload.get('success'):
-                cell_id = payload['cell_id']
-                owner_id = payload.get('owner_id')
-                if 'grid' not in self.game_data: 
-                    self.game_data['grid'] = {}
-                self.game_data['grid'][cell_id] = {'owner_id': owner_id}
-                print(f"[CLIENT] Cell {cell_id} acquired by {owner_id}")
+                owner = payload.get('owner_id')
+                self.game_data['grid'][cell_id] = {'owner_id': owner}
+                print(f"[CLIENT] Cell {cell_id} claimed by {owner}")
             else:
-                cell_id = payload['cell_id']
-                owner_id = payload.get('owner_id')
-                print(f"[CLIENT] Failed to acquire cell {cell_id} (owned by {owner_id})")
-                
+                # If failed, it might be owned by None or another player
+                print(f"[CLIENT] Cell {cell_id} claim failed.")
+
+        # D. GAME OVER: Show final winner
         elif msg_type == GridClashBinaryProtocol.MSG_GAME_OVER:
             self.game_data['game_over'] = True
             self.game_data['winner_id'] = payload.get('winner_id')
-            print(f"[CLIENT] Game Over! Winner: {self.game_data['winner_id']}")
 
     def update_interpolation(self):
         for pid in self.target_positions:
@@ -237,33 +243,49 @@ class GridClashUDPClient:
             if abs(target[1] - current[1]) < 0.01: current[1] = float(target[1])
 
     def handle_input(self):
-        if not self.player_id or "unknown" in self.player_id: 
-            if not self.headless:
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT: self.running = False
-            return
-
-        # --- BOT LOGIC (For Headless/Testing) ---
+        # 1. Handle Headless/Bot mode first
         if self.headless:
             self.handle_bot_input()
             return
 
-        # --- HUMAN INPUT (Pygame) ---
+        # 2. Safety check: ensure we are connected and assigned an ID
+        if not self.player_id or "unknown" in self.player_id: 
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT: self.running = False
+            return
+
+        # 3. Define the missing variables
         current_time = time.time()
         keys = pygame.key.get_pressed()
-        
+
+        # 4. Handle Discrete Events (Clicks and Single Key Presses)
         for event in pygame.event.get():
-            if event.type == pygame.QUIT: self.running = False; return
+            if event.type == pygame.QUIT: 
+                self.running = False
+            
+            # MOUSE CLICKING: Convert screen pixels to grid row/col
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                mx, my = pygame.mouse.get_pos()
+                col = mx // self.cell_size
+                row = my // self.cell_size
+                # Only send if the click is inside the grid
+                if row < self.grid_size and col < self.grid_size:
+                    cell_id = f"{row}_{col}"
+                    self.send_acquire_request(self.player_id, cell_id)
+
+            # KEYBOARD ACQUIRE: Press Space or Enter to claim the cell you are standing on
             elif event.type == pygame.KEYDOWN:
                 if event.key in [pygame.K_SPACE, pygame.K_RETURN]:
                     pos = self.my_predicted_pos
                     cell_id = f"{int(pos[0])}_{int(pos[1])}"
                     self.send_acquire_request(self.player_id, cell_id)
 
+        # 5. Handle Continuous Movement (Smooth movement with a cooldown)
         if current_time - self.last_action_time >= self.action_delay:
             current_pos = list(self.my_predicted_pos)
             original = list(current_pos)
             
+            # Map WASD/Arrows to Row/Col changes
             if keys[pygame.K_w] or keys[pygame.K_UP]: 
                 if current_pos[0] > 0: current_pos[0] -= 1
             elif keys[pygame.K_s] or keys[pygame.K_DOWN]: 
@@ -273,6 +295,7 @@ class GridClashUDPClient:
             elif keys[pygame.K_d] or keys[pygame.K_RIGHT]: 
                 if current_pos[1] < self.grid_size - 1: current_pos[1] += 1
             
+            # Only send update if position actually changed
             if current_pos != original:
                 self.my_predicted_pos = current_pos
                 self.send_player_move(self.player_id, current_pos)
