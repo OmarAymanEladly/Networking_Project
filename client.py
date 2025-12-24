@@ -24,7 +24,7 @@ class GridClashUDPClient:
         self.sequence_num = 0
         self.player_id = f"unknown_{random.randint(1000,9999)}" 
         
-        # Phase 2 Reliability (ARQ) for critical events
+        # Reliability: Track pending requests for retransmission
         self.pending_requests = {} 
         
         self.game_data = {
@@ -134,7 +134,7 @@ class GridClashUDPClient:
         if len(self.metrics['latency_samples']) > 20:
             self.metrics['latency_samples'].pop(0)
 
-        # Log metrics to CSV for the Phase 3 report
+        # Log metrics to CSV 
         p1_render = self.render_positions.get('player_1', [0, 0])
         self.csv_logger.log([
             self.player_id,
@@ -174,7 +174,7 @@ class GridClashUDPClient:
                     self.my_predicted_pos = list(self.target_positions[self.player_id])
             print(f"[OK] Connected as {self.player_id}")
 
-        # B. GAME STATE: Periodic 20Hz update (Scoreboard + Movement)
+        # B. GAME STATE: Periodic 20Hz update
         elif msg_type == GridClashBinaryProtocol.MSG_GAME_STATE:
             # Phase 2 Requirement: Discard outdated snapshots
             snapshot_id = header['snapshot_id']
@@ -182,11 +182,20 @@ class GridClashUDPClient:
                 return 
             self.last_snapshot_id = snapshot_id
 
-            # FIX: Update the players dictionary to reflect scores on the right-hand panel
+            # --- ADD THIS RESET LOGIC HERE ---
+            was_over = self.game_data.get('game_over', False)
+            is_over = payload.get('game_over', False)
+            
+            # If the game was over and is now starting a new round, clear the board
+            if was_over and not is_over:
+                self.game_data['grid'] = {}
+                print("[CLIENT] New round started: Clearing the board.")
+            # ---------------------------------
+
             if 'players' in payload:
                 self.game_data['players'] = payload['players']
             
-            # Apply Delta Grid Updates (only cells that changed)
+            # Apply Delta Grid Updates
             if 'grid_updates' in payload:
                 for cell_id, cell_data in payload['grid_updates'].items():
                     self.game_data['grid'][cell_id] = cell_data
