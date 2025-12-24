@@ -64,7 +64,7 @@ class GridClashBinaryProtocol:
     
     @staticmethod
     def encode_game_state(snapshot_id, seq_num, game_state):
-        # FIXED: Added 'players' so the scores update on the UI
+        
         data = {
             'players': game_state['players'], 
             'player_positions': game_state['player_positions'],
